@@ -6,14 +6,15 @@
 
 static log_level g_min_level = LOG_INFO;
 
-void log_set_level(log_level min) { g_min_level = min; }
+void log_set_level(log_level min) {
+    g_min_level = min;
+}
 
-void logmsg(log_level level, const char *fmt, ...)
-{
+void logmsg(log_level level, const char* fmt, ...) {
     if (level < g_min_level)
         return;
 
-    static const char *tags[] = { "DEBUG", "INFO ", "WARN ", "ERROR" };
+    static const char* tags[] = {"DEBUG", "INFO ", "WARN ", "ERROR"};
 
     time_t now = time(NULL);
     struct tm tm;

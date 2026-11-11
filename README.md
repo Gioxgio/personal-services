@@ -50,6 +50,27 @@ make clean             # clean every service
 
 Each service keeps its own Makefile, so you can also `cd <svc> && make`.
 
+## Code style
+
+All C sources are formatted with a single, repo-wide
+[`.clang-format`](.clang-format) (clang-format walks up from each source file
+to the root config, so no per-service copies exist) and driven by
+[`.clangd`](.clangd) (`-Wall -Wextra -Wpedantic -std=c11`, inlay hints on).
+
+Style highlights: 4-space indentation (no tabs), K&R braces, 100-column limit,
+C11. To (re)format everything:
+
+```sh
+clang-format -i $(git ls-files '*.c' '*.h')
+```
+
+A file conforms to the config when `clang-format --dry-run --Werror <file>`
+exits cleanly; CI can enforce this on the whole tree with:
+
+```sh
+for f in $(git ls-files '*.c' '*.h'); do clang-format --dry-run --Werror "$f"; done
+```
+
 ## Docker
 
 A single root `Dockerfile` has one build target stage per service

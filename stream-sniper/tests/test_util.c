@@ -6,6 +6,7 @@
  */
 
 #include "harness.h"
+#include "util.h"
 
 #include <limits.h>
 #include <stdio.h>
@@ -13,19 +14,15 @@
 #include <string.h>
 #include <sys/stat.h>
 
-#include "util.h"
-
 /* sanitise() returns a heap copy: compare, then free (the exit-
  * time leak check in `make debug` is what notices a missed free). */
-static void check_sanitise(const char *in, const char *want)
-{
-    char *got = sanitise(in);
+static void check_sanitise(const char* in, const char* want) {
+    char* got = sanitise(in);
     CHECK_STR_EQ(got, want);
     free(got);
 }
 
-int main(void)
-{
+int main(void) {
     /* --- trim: trailing whitespace and newlines only --- */
 
     char s1[] = "abc\n";
@@ -166,10 +163,10 @@ int main(void)
      * removes wholesale - nothing is left in the source tree.
      * Tests run from the project root (make test does).
      */
-    const char *root = "build/.test-util";
+    const char* root = "build/.test-util";
 
     CHECK(mkdir_p(root));
-    CHECK(mkdir_p(root));                    /* existing dir: still true */
+    CHECK(mkdir_p(root)); /* existing dir: still true */
 
     char nested[256];
     snprintf(nested, sizeof nested, "%s/a/b/c", root);
@@ -180,7 +177,7 @@ int main(void)
     /* A regular file in the way of a component blocks creation. */
     char blocker[256];
     snprintf(blocker, sizeof blocker, "%s/blocker", root);
-    FILE *f = fopen(blocker, "w");
+    FILE* f = fopen(blocker, "w");
     CHECK(f != NULL);
     if (f)
         fclose(f);
@@ -188,7 +185,7 @@ int main(void)
     CHECK(!mkdir_p(nested));
 
     /* A path longer than PATH_MAX is refused, not truncated. */
-    char *huge = malloc(PATH_MAX + 16);
+    char* huge = malloc(PATH_MAX + 16);
     if (huge) {
         memset(huge, 'a', PATH_MAX + 15);
         huge[PATH_MAX + 15] = '\0';

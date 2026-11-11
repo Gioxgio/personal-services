@@ -5,7 +5,7 @@
 #include <stdio.h>
 #include <string.h>
 
-static bool skip_string(const char **p) {
+static bool skip_string(const char** p) {
     (*p)++; // skip opening quote
     while (**p && **p != '"') {
         if (**p == '\\') {
@@ -33,7 +33,7 @@ static bool skip_string(const char **p) {
     return true;
 }
 
-static bool skip_value(const char **p) {
+static bool skip_value(const char** p) {
     while (**p && isspace((unsigned char)**p))
         (*p)++;
 
@@ -103,20 +103,18 @@ static bool skip_value(const char **p) {
         return false;
     } else {
         // number, true, false, null
-        while (**p && **p != ',' && **p != '}' && **p != ']' &&
-               !isspace((unsigned char)**p)) {
+        while (**p && **p != ',' && **p != '}' && **p != ']' && !isspace((unsigned char)**p)) {
             (*p)++;
         }
         return true;
     }
 }
 
-bool json_parse_request(const char *json_raw,
-                        notification_payload_t *out_payload) {
+bool json_parse_request(const char* json_raw, notification_payload_t* out_payload) {
     if (!json_raw || !out_payload)
         return false;
 
-    const char *p = json_raw;
+    const char* p = json_raw;
 
     // Skip leading whitespace
     while (*p && isspace((unsigned char)*p))
@@ -192,34 +190,34 @@ bool json_parse_request(const char *json_raw,
                     char escaped = *p;
                     p++;
                     switch (escaped) {
-                    case '"':
-                        if (msg_len < MAX_TELEGRAM_MSG_LEN)
-                            out_payload->message[msg_len++] = '"';
-                        break;
-                    case '\\':
-                        if (msg_len < MAX_TELEGRAM_MSG_LEN)
-                            out_payload->message[msg_len++] = '\\';
-                        break;
-                    case 'n':
-                        if (msg_len < MAX_TELEGRAM_MSG_LEN)
-                            out_payload->message[msg_len++] = '\n';
-                        break;
-                    case 'r':
-                        if (msg_len < MAX_TELEGRAM_MSG_LEN)
-                            out_payload->message[msg_len++] = '\r';
-                        break;
-                    case 't':
-                        if (msg_len < MAX_TELEGRAM_MSG_LEN)
-                            out_payload->message[msg_len++] = '\t';
-                        break;
-                    case '/':
-                        if (msg_len < MAX_TELEGRAM_MSG_LEN)
-                            out_payload->message[msg_len++] = '/';
-                        break;
-                    case 'u':
-                        return false; // \uXXXX not supported
-                    default:
-                        return false; // invalid escape
+                        case '"':
+                            if (msg_len < MAX_TELEGRAM_MSG_LEN)
+                                out_payload->message[msg_len++] = '"';
+                            break;
+                        case '\\':
+                            if (msg_len < MAX_TELEGRAM_MSG_LEN)
+                                out_payload->message[msg_len++] = '\\';
+                            break;
+                        case 'n':
+                            if (msg_len < MAX_TELEGRAM_MSG_LEN)
+                                out_payload->message[msg_len++] = '\n';
+                            break;
+                        case 'r':
+                            if (msg_len < MAX_TELEGRAM_MSG_LEN)
+                                out_payload->message[msg_len++] = '\r';
+                            break;
+                        case 't':
+                            if (msg_len < MAX_TELEGRAM_MSG_LEN)
+                                out_payload->message[msg_len++] = '\t';
+                            break;
+                        case '/':
+                            if (msg_len < MAX_TELEGRAM_MSG_LEN)
+                                out_payload->message[msg_len++] = '/';
+                            break;
+                        case 'u':
+                            return false; // \uXXXX not supported
+                        default:
+                            return false; // invalid escape
                     }
                 } else {
                     // Regular character (including UTF-8 bytes > 0x7F)
@@ -250,16 +248,34 @@ bool json_parse_request(const char *json_raw,
                     if (*p == '\0')
                         return false;
                     switch (*p) {
-                    case '"': c = '"'; break;
-                    case '\\': c = '\\'; break;
-                    case '/': c = '/'; break;
-                    case 'b': c = '\b'; break;
-                    case 'f': c = '\f'; break;
-                    case 'n': c = '\n'; break;
-                    case 'r': c = '\r'; break;
-                    case 't': c = '\t'; break;
-                    case 'u': return false;
-                    default: return false;
+                        case '"':
+                            c = '"';
+                            break;
+                        case '\\':
+                            c = '\\';
+                            break;
+                        case '/':
+                            c = '/';
+                            break;
+                        case 'b':
+                            c = '\b';
+                            break;
+                        case 'f':
+                            c = '\f';
+                            break;
+                        case 'n':
+                            c = '\n';
+                            break;
+                        case 'r':
+                            c = '\r';
+                            break;
+                        case 't':
+                            c = '\t';
+                            break;
+                        case 'u':
+                            return false;
+                        default:
+                            return false;
                     }
                     p++;
                 } else {
@@ -309,7 +325,7 @@ bool json_parse_request(const char *json_raw,
 /* Read a JSON string value (`*p` points at the opening quote), unescape it
  * into `out` (capacity `cap`), and advance `*p` past the closing quote.
  * Returns true on success. \uXXXX escapes are not supported. */
-static bool json_read_string(const char **p, char *out, size_t cap) {
+static bool json_read_string(const char** p, char* out, size_t cap) {
     if (!p || !*p || **p != '"' || !out || cap == 0)
         return false;
     (*p)++; /* skip opening quote */
@@ -322,34 +338,34 @@ static bool json_read_string(const char **p, char *out, size_t cap) {
             if (**p == '\0')
                 return false;
             switch (**p) {
-            case '"':
-                c = '"';
-                break;
-            case '\\':
-                c = '\\';
-                break;
-            case '/':
-                c = '/';
-                break;
-            case 'b':
-                c = '\b';
-                break;
-            case 'f':
-                c = '\f';
-                break;
-            case 'n':
-                c = '\n';
-                break;
-            case 'r':
-                c = '\r';
-                break;
-            case 't':
-                c = '\t';
-                break;
-            case 'u':
-                return false; /* \uXXXX not supported */
-            default:
-                return false;
+                case '"':
+                    c = '"';
+                    break;
+                case '\\':
+                    c = '\\';
+                    break;
+                case '/':
+                    c = '/';
+                    break;
+                case 'b':
+                    c = '\b';
+                    break;
+                case 'f':
+                    c = '\f';
+                    break;
+                case 'n':
+                    c = '\n';
+                    break;
+                case 'r':
+                    c = '\r';
+                    break;
+                case 't':
+                    c = '\t';
+                    break;
+                case 'u':
+                    return false; /* \uXXXX not supported */
+                default:
+                    return false;
             }
             (*p)++;
         } else {
@@ -369,7 +385,7 @@ static bool json_read_string(const char **p, char *out, size_t cap) {
 
 /* Read a JSON number value (`*p` points at the first digit or '-') and store
  * it in `out`, advancing `*p` past the number. Returns true on success. */
-static bool json_read_number(const char **p, long long *out) {
+static bool json_read_number(const char** p, long long* out) {
     if (!p || !*p || !out)
         return false;
 
@@ -398,7 +414,7 @@ static bool json_read_number(const char **p, long long *out) {
  * value. If the key is absent or the object is malformed, return false with
  * `*p` just past the closing '}'.
  */
-static bool json_object_find_value(const char **p, const char *key) {
+static bool json_object_find_value(const char** p, const char* key) {
     if (!p || !*p || **p != '{')
         return false;
     (*p)++; /* skip '{' */
@@ -417,7 +433,7 @@ static bool json_object_find_value(const char **p, const char *key) {
         if (!json_read_string(p, kbuf, sizeof kbuf))
             return false;
 
-        const char *after_key = *p;
+        const char* after_key = *p;
         while (*after_key && isspace((unsigned char)*after_key))
             after_key++;
         if (*after_key != ':')
@@ -446,12 +462,11 @@ static bool json_object_find_value(const char **p, const char *key) {
     }
 }
 
-bool json_find_top_level_string(const char *json_raw, const char *key,
-                                char *out, size_t cap) {
+bool json_find_top_level_string(const char* json_raw, const char* key, char* out, size_t cap) {
     if (!json_raw || !key || !out || cap == 0)
         return false;
 
-    const char *p = json_raw;
+    const char* p = json_raw;
     while (*p && isspace((unsigned char)*p))
         p++;
     if (*p != '{')
@@ -461,12 +476,11 @@ bool json_find_top_level_string(const char *json_raw, const char *key,
     return json_read_string(&p, out, cap);
 }
 
-bool json_find_top_level_int64(const char *json_raw, const char *key,
-                               long long *out) {
+bool json_find_top_level_int64(const char* json_raw, const char* key, long long* out) {
     if (!json_raw || !key || !out)
         return false;
 
-    const char *p = json_raw;
+    const char* p = json_raw;
     while (*p && isspace((unsigned char)*p))
         p++;
     if (*p != '{')
@@ -476,20 +490,19 @@ bool json_find_top_level_int64(const char *json_raw, const char *key,
     return json_read_number(&p, out);
 }
 
-bool json_extract_telegram_update(const char *json_raw,
-                                  char *chat_id_out, size_t chat_id_cap,
-                                  char *text_out, size_t text_cap) {
+bool json_extract_telegram_update(const char* json_raw, char* chat_id_out, size_t chat_id_cap,
+                                  char* text_out, size_t text_cap) {
     if (!json_raw)
         return false;
 
-    const char *p = json_raw;
+    const char* p = json_raw;
     while (*p && isspace((unsigned char)*p))
         p++;
     if (*p != '{')
         return false;
 
     /* Locate the "message" object (member order is not assumed). */
-    const char *msg = p;
+    const char* msg = p;
     if (!json_object_find_value(&msg, "message"))
         return false;
     if (*msg != '{')
@@ -498,9 +511,9 @@ bool json_extract_telegram_update(const char *json_raw,
     bool got_chat = false;
     long long chat_id = 0;
 
-    const char *q = msg;
+    const char* q = msg;
     if (json_object_find_value(&q, "chat") && *q == '{') {
-        const char *r = q;
+        const char* r = q;
         if (json_object_find_value(&r, "id") && json_read_number(&r, &chat_id)) {
             got_chat = true;
             if (chat_id_out && chat_id_cap > 0) {
@@ -514,8 +527,7 @@ bool json_extract_telegram_update(const char *json_raw,
     bool got_text = false;
     q = msg;
     if (text_out && text_cap > 0) {
-        if (json_object_find_value(&q, "text") &&
-            json_read_string(&q, text_out, text_cap))
+        if (json_object_find_value(&q, "text") && json_read_string(&q, text_out, text_cap))
             got_text = true;
     } else {
         got_text = true;
@@ -524,49 +536,48 @@ bool json_extract_telegram_update(const char *json_raw,
     return got_chat && got_text;
 }
 
-int json_escape_string(const char *input, char *output,
-                       size_t output_size) {
+int json_escape_string(const char* input, char* output, size_t output_size) {
     if (!input || !output || output_size == 0)
         return -1;
 
     size_t j = 0;
     for (size_t i = 0; input[i] != '\0'; i++) {
         unsigned char c = (unsigned char)input[i];
-        const char *replacement = NULL;
+        const char* replacement = NULL;
         char single[2] = {(char)c, '\0'};
 
         switch (c) {
-        case '"':
-            replacement = "\\\"";
-            break;
-        case '\\':
-            replacement = "\\\\";
-            break;
-        case '\n':
-            replacement = "\\n";
-            break;
-        case '\r':
-            replacement = "\\r";
-            break;
-        case '\t':
-            replacement = "\\t";
-            break;
-        case '\b':
-            replacement = "\\b";
-            break;
-        case '\f':
-            replacement = "\\f";
-            break;
-        default:
-            if (c < 0x20) {
-                int n = snprintf(output + j, output_size - j, "\\u%04x", c);
-                if (n < 0 || (size_t)n >= output_size - j)
-                    return -1;
-                j += (size_t)n;
-                continue;
-            }
-            replacement = single;
-            break;
+            case '"':
+                replacement = "\\\"";
+                break;
+            case '\\':
+                replacement = "\\\\";
+                break;
+            case '\n':
+                replacement = "\\n";
+                break;
+            case '\r':
+                replacement = "\\r";
+                break;
+            case '\t':
+                replacement = "\\t";
+                break;
+            case '\b':
+                replacement = "\\b";
+                break;
+            case '\f':
+                replacement = "\\f";
+                break;
+            default:
+                if (c < 0x20) {
+                    int n = snprintf(output + j, output_size - j, "\\u%04x", c);
+                    if (n < 0 || (size_t)n >= output_size - j)
+                        return -1;
+                    j += (size_t)n;
+                    continue;
+                }
+                replacement = single;
+                break;
         }
 
         size_t len = strlen(replacement);

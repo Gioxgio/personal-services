@@ -32,6 +32,12 @@
  */
 
 #include "harness.h"
+#include "http.h"
+#include "log.h"
+#include "notify.h"
+#include "recorder.h"
+#include "urlparse.h"
+#include "util.h"
 
 #include <arpa/inet.h>
 #include <dirent.h>
@@ -52,13 +58,6 @@
 #include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
-
-#include "http.h"
-#include "log.h"
-#include "notify.h"
-#include "recorder.h"
-#include "urlparse.h"
-#include "util.h"
 
 /* What a probe would have handed over; the fake yt-dlp ignores it. */
 #define STREAM_URL "https://www.youtube.com/watch?v=LIVEnotify001"
@@ -82,18 +81,16 @@ static channel_t g_ch;
  *   <root>/started      touched the moment the fake runs
  *   <root>/release      touched by the test to let the fake exit
  */
-static char *g_root;
+static char* g_root;
 
-static char *in_root(const char *name)
-{
-    char *p = xmalloc(TEST_PATH);
+static char* in_root(const char* name) {
+    char* p = xmalloc(TEST_PATH);
     snprintf(p, TEST_PATH, "%s/%s", g_root, name);
     return p;
 }
 
-static bool write_file(const char *path, const char *body, mode_t mode)
-{
-    FILE *f = fopen(path, "w");
+static bool write_file(const char* path, const char* body, mode_t mode) {
+    FILE* f = fopen(path, "w");
     if (!f)
         return false;
     bool ok = fputs(body, f) >= 0;
@@ -102,27 +99,25 @@ static bool write_file(const char *path, const char *body, mode_t mode)
     return ok && chmod(path, mode) == 0;
 }
 
-static bool wait_for(const char *path)
-{
-    for (int i = 0; i < 400; i++) {      /* ~4 s, 10 ms apart */
+static bool wait_for(const char* path) {
+    for (int i = 0; i < 400; i++) { /* ~4 s, 10 ms apart */
         if (access(path, F_OK) == 0)
             return true;
-        struct timespec nap = { 0, 10000000L };
+        struct timespec nap = {0, 10000000L};
         nanosleep(&nap, NULL);
     }
     return false;
 }
 
-static void rm_tree(const char *dir)
-{
-    DIR *d = opendir(dir);
+static void rm_tree(const char* dir) {
+    DIR* d = opendir(dir);
     if (!d)
         return;
-    struct dirent *e;
+    struct dirent* e;
     while ((e = readdir(d))) {
         if (!strcmp(e->d_name, ".") || !strcmp(e->d_name, ".."))
             continue;
-        char *p = xmalloc(TEST_PATH);
+        char* p = xmalloc(TEST_PATH);
         snprintf(p, TEST_PATH, "%s/%s", dir, e->d_name);
         struct stat st;
         if (lstat(p, &st) == 0 && S_ISDIR(st.st_mode))
@@ -137,19 +132,19 @@ static void rm_tree(const char *dir)
 
 /* --- the loopback capture server --- */
 
-#define REQ_MAX      16
+#define REQ_MAX 16
 #define REQ_LINE_MAX 256
-#define REQ_HDR_MAX  2048
+#define REQ_HDR_MAX 2048
 #define REQ_BODY_MAX 512
 
 typedef struct {
-    char line[REQ_LINE_MAX];             /* request line            */
-    char hdrs[REQ_HDR_MAX];              /* header block            */
-    char body[REQ_BODY_MAX];             /* exactly Content-Length  */
+    char line[REQ_LINE_MAX]; /* request line            */
+    char hdrs[REQ_HDR_MAX];  /* header block            */
+    char body[REQ_BODY_MAX]; /* exactly Content-Length  */
 } req_t;
 
-static req_t     g_reqs[REQ_MAX];
-static int       g_nreqs;
+static req_t g_reqs[REQ_MAX];
+static int g_nreqs;
 static pthread_mutex_t g_reqs_mtx = PTHREAD_MUTEX_INITIALIZER;
 
 static int g_listen_fd = -1;
@@ -167,16 +162,15 @@ static pthread_t g_server_thread;
  * is not there. Case-insensitive, and bounded by headers_end: the
  * body could itself contain anything, including this string.
  */
-static long parse_content_length(const char *hdr, const char *headers_end)
-{
-    for (const char *p = hdr; p < headers_end && *p; p++) {
+static long parse_content_length(const char* hdr, const char* headers_end) {
+    for (const char* p = hdr; p < headers_end && *p; p++) {
         if (strncasecmp(p, "Content-Length:", 15) == 0) {
             p += 15;
             while (*p == ' ' || *p == '\t')
                 p++;
             return strtol(p, NULL, 10);
         }
-        const char *nl = strstr(p, "\r\n");
+        const char* nl = strstr(p, "\r\n");
         if (!nl || nl >= headers_end)
             break;
         p = nl + 2;
@@ -185,9 +179,8 @@ static long parse_content_length(const char *hdr, const char *headers_end)
 }
 
 /* Store one request under the mutex; past REQ_MAX it is dropped. */
-static void capture_request(const char *req)
-{
-    req_t r = { 0 };
+static void capture_request(const char* req) {
+    req_t r = {0};
 
     size_t line_len = strcspn(req, "\r\n");
     if (line_len < sizeof r.line) {
@@ -198,7 +191,7 @@ static void capture_request(const char *req)
         r.line[sizeof r.line - 1] = '\0';
     }
 
-    char *hdrs_end = strstr(req, "\r\n\r\n");
+    char* hdrs_end = strstr(req, "\r\n\r\n");
     if (hdrs_end) {
         size_t hl = (size_t)(hdrs_end - req) + 4;
         if (hl > sizeof r.hdrs - 1)
@@ -208,7 +201,7 @@ static void capture_request(const char *req)
 
         /* The body is exactly what Content-Length promised. */
         long clen = parse_content_length(req, hdrs_end);
-        const char *b = hdrs_end + 4;
+        const char* b = hdrs_end + 4;
         size_t blen = clen > 0 ? (size_t)clen : strlen(b);
         if (blen > sizeof r.body - 1)
             blen = sizeof r.body - 1;
@@ -228,8 +221,7 @@ static void capture_request(const char *req)
  * read as the headers - capture it, and answer 200 so http_post()
  * sees a success the way a live endpoint would give it.
  */
-static void handle_conn(int fd)
-{
+static void handle_conn(int fd) {
     char req[8192];
     size_t total = 0;
 
@@ -247,15 +239,15 @@ static void handle_conn(int fd)
         total += (size_t)n;
         req[total] = '\0';
 
-        char *hdrs_end = strstr(req, "\r\n\r\n");
+        char* hdrs_end = strstr(req, "\r\n\r\n");
         if (!hdrs_end)
             continue;
         size_t hdr_len = (size_t)(hdrs_end - req) + 4;
         long clen = parse_content_length(req, hdrs_end);
         if (clen <= 0)
-            break;                      /* no body expected */
+            break; /* no body expected */
         if (total >= hdr_len + (size_t)clen)
-            break;                      /* body complete */
+            break; /* body complete */
     }
 
     if (total > 0 && strstr(req, "\r\n\r\n"))
@@ -268,13 +260,12 @@ static void handle_conn(int fd)
     close(fd);
 }
 
-static void *server_main(void *arg)
-{
+static void* server_main(void* arg) {
     (void)arg;
     while (atomic_load_explicit(&g_serve, memory_order_relaxed)) {
-        struct pollfd pfd = { .fd = g_listen_fd, .events = POLLIN };
+        struct pollfd pfd = {.fd = g_listen_fd, .events = POLLIN};
         if (poll(&pfd, 1, 50) <= 0)
-            continue;                   /* timeout or EINTR */
+            continue; /* timeout or EINTR */
 
         int fd = accept(g_listen_fd, NULL, NULL);
         if (fd < 0)
@@ -284,8 +275,7 @@ static void *server_main(void *arg)
     return NULL;
 }
 
-static void server_start(void)
-{
+static void server_start(void) {
     g_listen_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (g_listen_fd < 0) {
         perror("socket");
@@ -294,17 +284,17 @@ static void server_start(void)
     int one = 1;
     setsockopt(g_listen_fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof one);
 
-    struct sockaddr_in addr = { 0 };
+    struct sockaddr_in addr = {0};
     addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-    addr.sin_port = 0;                  /* ephemeral: no collisions */
-    if (bind(g_listen_fd, (struct sockaddr *)&addr, sizeof addr) != 0 ||
+    addr.sin_port = 0; /* ephemeral: no collisions */
+    if (bind(g_listen_fd, (struct sockaddr*)&addr, sizeof addr) != 0 ||
         listen(g_listen_fd, 8) != 0) {
         perror("bind/listen");
         exit(1);
     }
     socklen_t alen = sizeof addr;
-    if (getsockname(g_listen_fd, (struct sockaddr *)&addr, &alen) != 0) {
+    if (getsockname(g_listen_fd, (struct sockaddr*)&addr, &alen) != 0) {
         perror("getsockname");
         exit(1);
     }
@@ -316,8 +306,7 @@ static void server_start(void)
     }
 }
 
-static void server_stop(void)
-{
+static void server_stop(void) {
     atomic_store_explicit(&g_serve, false, memory_order_relaxed);
     pthread_join(g_server_thread, NULL);
     close(g_listen_fd);
@@ -326,27 +315,24 @@ static void server_stop(void)
 
 /* --- request log access, always under the server's mutex --- */
 
-static int request_count(void)
-{
+static int request_count(void) {
     pthread_mutex_lock(&g_reqs_mtx);
     int n = g_nreqs;
     pthread_mutex_unlock(&g_reqs_mtx);
     return n;
 }
 
-static bool wait_for_requests(int n)
-{
-    for (int i = 0; i < 600; i++) {      /* ~6 s, 10 ms apart */
+static bool wait_for_requests(int n) {
+    for (int i = 0; i < 600; i++) { /* ~6 s, 10 ms apart */
         if (request_count() >= n)
             return true;
-        struct timespec nap = { 0, 10000000L };
+        struct timespec nap = {0, 10000000L};
         nanosleep(&nap, NULL);
     }
     return false;
 }
 
-static bool request_at(int i, req_t *out)
-{
+static bool request_at(int i, req_t* out) {
     pthread_mutex_lock(&g_reqs_mtx);
     bool ok = i >= 0 && i < g_nreqs;
     if (ok)
@@ -361,15 +347,13 @@ static bool request_at(int i, req_t *out)
  * recorder's own clock - "0:00" here, but its shape, not its value,
  * is what can be asserted.
  */
-static void check_body_shape(const char *body, const char *prefix,
-                             const char *tail)
-{
+static void check_body_shape(const char* body, const char* prefix, const char* tail) {
     size_t plen = strlen(prefix);
     size_t tlen = strlen(tail);
     size_t blen = strlen(body);
 
     if (blen <= plen + tlen) {
-        CHECK(false);                   /* no room for a duration */
+        CHECK(false); /* no room for a duration */
         return;
     }
     CHECK(strncmp(body, prefix, plen) == 0);
@@ -394,28 +378,26 @@ static const char FAKE_YTDLP[] =
  * re-inits: recorder_shutdown() drops the slots, so a fresh
  * recorder_init() is what makes the next start legitimate.
  */
-static void record_once(void)
-{
-    char *started = in_root("started");
-    char *release = in_root("release");
-    char *out     = in_root("out");
+static void record_once(void) {
+    char* started = in_root("started");
+    char* release = in_root("release");
+    char* out = in_root("out");
 
     unlink(started);
     unlink(release);
 
     CHECK(recorder_init(&g_ch, 1, out));
     CHECK(recorder_start(&g_ch, xstrdup(STREAM_URL)));
-    CHECK(wait_for(started));            /* the child is running */
+    CHECK(wait_for(started)); /* the child is running */
     CHECK(write_file(release, "", 0644));
-    recorder_shutdown();                 /* joins the recording thread */
+    recorder_shutdown(); /* joins the recording thread */
 
     free(started);
     free(release);
     free(out);
 }
 
-int main(void)
-{
+int main(void) {
     /*
      * The recorder logs every fork and every DONE at INFO, which is
      * evidence on a real run and noise in a test log. WARN still
@@ -426,7 +408,7 @@ int main(void)
 
     /* --- the JSON escaper, on its own --- */
 
-    char *q = notify_json_quote("notifytest");
+    char* q = notify_json_quote("notifytest");
     CHECK_STR_EQ(q, "\"notifytest\"");
     free(q);
 
@@ -462,24 +444,23 @@ int main(void)
     /* --- the integration half --- */
 
     char tmpl[] = "/tmp/ss-test-notify-XXXXXX";
-    char *made = mkdtemp(tmpl);
+    char* made = mkdtemp(tmpl);
     if (!made) {
-        fprintf(stderr, "test_notify: cannot create a temp dir: %s\n",
-                strerror(errno));
+        fprintf(stderr, "test_notify: cannot create a temp dir: %s\n", strerror(errno));
         return 1;
     }
     g_root = xstrdup(made);
 
-    char *bin  = in_root("bin");
-    char *out  = in_root("out");
-    char *fake = in_root("bin/yt-dlp");
+    char* bin = in_root("bin");
+    char* out = in_root("out");
+    char* fake = in_root("bin/yt-dlp");
     CHECK(mkdir(bin, 0755) == 0);
     CHECK(mkdir(out, 0755) == 0);
     CHECK(write_file(fake, FAKE_YTDLP, 0755));
 
     /* execvp() searches PATH, so the fake has to come first. */
-    const char *old_path = getenv("PATH");
-    char *path = xmalloc(TEST_PATH);
+    const char* old_path = getenv("PATH");
+    char* path = xmalloc(TEST_PATH);
     snprintf(path, TEST_PATH, "%s:%s", bin, old_path ? old_path : "/usr/bin:/bin");
     setenv("PATH", path, 1);
     setenv("SS_TEST_ROOT", g_root, 1);
@@ -491,8 +472,8 @@ int main(void)
     char base[64];
     snprintf(base, sizeof base, "http://127.0.0.1:%d", g_port);
 
-    char *started = in_root("started");
-    char *release = in_root("release");
+    char* started = in_root("started");
+    char* release = in_root("release");
 
     /* --- phase 1: enabled, the broadcast ends on its own --- */
 
@@ -503,13 +484,13 @@ int main(void)
     unlink(release);
     CHECK(recorder_init(&g_ch, 1, out));
     CHECK(recorder_start(&g_ch, xstrdup(STREAM_URL)));
-    CHECK(wait_for(started));             /* the child is running */
-    CHECK(wait_for_requests(1));          /* the start notification */
+    CHECK(wait_for(started));    /* the child is running */
+    CHECK(wait_for_requests(1)); /* the start notification */
     CHECK(write_file(release, "", 0644));
-    CHECK(wait_for_requests(2));          /* the stop notification */
+    CHECK(wait_for_requests(2)); /* the stop notification */
     recorder_shutdown();
 
-    CHECK(request_count() == 2);          /* exactly two, no more */
+    CHECK(request_count() == 2); /* exactly two, no more */
 
     req_t r0, r1;
     CHECK(request_at(0, &r0));
@@ -522,9 +503,8 @@ int main(void)
     CHECK(strstr(r1.hdrs, "Content-Type: application/json") != NULL);
 
     /* The start message, byte for byte: source + message. */
-    CHECK_STR_EQ(r0.body,
-                 "{\"source\": \"stream-sniper\", \"message\": \"started "
-                 "recording notifytest\"}");
+    CHECK_STR_EQ(r0.body, "{\"source\": \"stream-sniper\", \"message\": \"started "
+                          "recording notifytest\"}");
 
     char prefix[REQ_BODY_MAX];
     snprintf(prefix, sizeof prefix,
@@ -540,10 +520,10 @@ int main(void)
     CHECK(recorder_init(&g_ch, 1, out));
     CHECK(recorder_start(&g_ch, xstrdup(STREAM_URL)));
     CHECK(wait_for(started));
-    CHECK(wait_for_requests(3));          /* its start notification */
+    CHECK(wait_for_requests(3)); /* its start notification */
     /* No release: the child is still held, so shutdown SIGTERMs it. */
     recorder_shutdown();
-    CHECK(wait_for_requests(4));          /* its stop notification */
+    CHECK(wait_for_requests(4)); /* its stop notification */
 
     CHECK(request_count() == 4);
 

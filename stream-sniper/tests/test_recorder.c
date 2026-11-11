@@ -36,6 +36,10 @@
  */
 
 #include "harness.h"
+#include "log.h"
+#include "recorder.h"
+#include "urlparse.h"
+#include "util.h"
 
 #include <dirent.h>
 #include <errno.h>
@@ -49,11 +53,6 @@
 #include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
-
-#include "log.h"
-#include "recorder.h"
-#include "urlparse.h"
-#include "util.h"
 
 /* The URL a probe would have handed over, and the config line it came from. */
 #define STREAM_URL "https://www.youtube.com/watch?v=LIVErecorder01"
@@ -79,18 +78,16 @@ static channel_t g_ch;
  *   <root>/started           touched the moment the fake runs
  *   <root>/release           touched by the test to let the fake exit
  */
-static char *g_root;
+static char* g_root;
 
-static char *in_root(const char *name)
-{
-    char *p = xmalloc(TEST_PATH);
+static char* in_root(const char* name) {
+    char* p = xmalloc(TEST_PATH);
     snprintf(p, TEST_PATH, "%s/%s", g_root, name);
     return p;
 }
 
-static bool write_file(const char *path, const char *body, mode_t mode)
-{
-    FILE *f = fopen(path, "w");
+static bool write_file(const char* path, const char* body, mode_t mode) {
+    FILE* f = fopen(path, "w");
     if (!f)
         return false;
     bool ok = fputs(body, f) >= 0;
@@ -99,17 +96,16 @@ static bool write_file(const char *path, const char *body, mode_t mode)
     return ok && chmod(path, mode) == 0;
 }
 
-static char *read_file(const char *path)
-{
-    FILE *f = fopen(path, "rb");
+static char* read_file(const char* path) {
+    FILE* f = fopen(path, "rb");
     if (!f)
         return NULL;
-    char *buf = NULL;
+    char* buf = NULL;
     size_t len = 0, cap = 0;
     for (;;) {
         if (len + 256 + 1 > cap) {
             cap = cap ? cap * 2 : 1024;
-            char *p = realloc(buf, cap);
+            char* p = realloc(buf, cap);
             if (!p) {
                 free(buf);
                 fclose(f);
@@ -133,27 +129,25 @@ static char *read_file(const char *path)
     return buf;
 }
 
-static bool wait_for(const char *path)
-{
-    for (int i = 0; i < 400; i++) {      /* ~4 s, 10 ms apart */
+static bool wait_for(const char* path) {
+    for (int i = 0; i < 400; i++) { /* ~4 s, 10 ms apart */
         if (access(path, F_OK) == 0)
             return true;
-        struct timespec nap = { 0, 10000000L };
+        struct timespec nap = {0, 10000000L};
         nanosleep(&nap, NULL);
     }
     return false;
 }
 
-static void rm_tree(const char *dir)
-{
-    DIR *d = opendir(dir);
+static void rm_tree(const char* dir) {
+    DIR* d = opendir(dir);
     if (!d)
         return;
-    struct dirent *e;
+    struct dirent* e;
     while ((e = readdir(d))) {
         if (!strcmp(e->d_name, ".") || !strcmp(e->d_name, ".."))
             continue;
-        char *p = xmalloc(TEST_PATH);
+        char* p = xmalloc(TEST_PATH);
         snprintf(p, TEST_PATH, "%s/%s", dir, e->d_name);
         struct stat st;
         if (lstat(p, &st) == 0 && S_ISDIR(st.st_mode))
@@ -166,12 +160,11 @@ static void rm_tree(const char *dir)
     rmdir(dir);
 }
 
-static char *copy_file(const char *from, const char *to, mode_t mode)
-{
-    FILE *in = fopen(from, "rb");
+static char* copy_file(const char* from, const char* to, mode_t mode) {
+    FILE* in = fopen(from, "rb");
     if (!in)
         return NULL;
-    FILE *out = fopen(to, "wb");
+    FILE* out = fopen(to, "wb");
     if (!out) {
         fclose(in);
         return NULL;
@@ -214,10 +207,9 @@ static const char FAKE_YTDLP[] =
     "exit 0\n";
 
 /* The pid the fake published for its grandchild, or 0 if it never ran. */
-static pid_t grandchild_pid(void)
-{
-    char *path = in_root("grandchild");
-    char *body = read_file(path);
+static pid_t grandchild_pid(void) {
+    char* path = in_root("grandchild");
+    char* body = read_file(path);
     pid_t pid = body ? (pid_t)strtol(body, NULL, 10) : 0;
     free(body);
     free(path);
@@ -231,21 +223,20 @@ static pid_t grandchild_pid(void)
  * gone: a killed orphan stays visible until whoever adopted it reaps it,
  * and how long that takes is not ours to decide.
  */
-static char pid_state(pid_t pid)
-{
+static char pid_state(pid_t pid) {
     char path[64];
     char buf[256];
     snprintf(path, sizeof path, "/proc/%ld/stat", (long)pid);
 
-    FILE *f = fopen(path, "r");
+    FILE* f = fopen(path, "r");
     if (!f)
-        return '\0';                      /* no such process */
+        return '\0'; /* no such process */
 
     char state = '\0';
     if (fgets(buf, sizeof buf, f)) {
         /* "<pid> (<comm>) <state> ..." and comm may itself contain spaces
          * and parentheses, so the state is the field after the last ')'. */
-        char *p = strrchr(buf, ')');
+        char* p = strrchr(buf, ')');
         if (p && p[1] == ' ')
             state = p[2];
     }
@@ -259,10 +250,9 @@ static char pid_state(pid_t pid)
  * the signals that remove it are asynchronous, and a process that has to
  * be reaped by its new parent is not ours to hurry.
  */
-static void check_grandchild_gone(const char *phase)
-{
+static void check_grandchild_gone(const char* phase) {
     pid_t gc = grandchild_pid();
-    CHECK(gc > 0);                         /* the fake really spawned one */
+    CHECK(gc > 0); /* the fake really spawned one */
     if (gc <= 0)
         return;
 
@@ -271,15 +261,15 @@ static void check_grandchild_gone(const char *phase)
         state = pid_state(gc);
         if (state == '\0' || state == 'Z')
             break;
-        struct timespec nap = { 0, 10000000L };
+        struct timespec nap = {0, 10000000L};
         nanosleep(&nap, NULL);
     }
 
     bool gone = (state == '\0' || state == 'Z');
     if (!gone) {
-        fprintf(stderr, "      pid %ld is in state '%c' after %s: %s\n",
-                (long)gc, state, phase, "still running");
-        (void)kill(gc, SIGKILL);           /* never leave it behind us */
+        fprintf(stderr, "      pid %ld is in state '%c' after %s: %s\n", (long)gc, state, phase,
+                "still running");
+        (void)kill(gc, SIGKILL); /* never leave it behind us */
     }
     CHECK(gone);
 }
@@ -293,20 +283,19 @@ static void check_grandchild_gone(const char *phase)
  * recorder was never given are the two ways recorder_start() can say no.
  * Under `make debug` neither may leak its URL.
  */
-static char *record_once(bool expect_wrapper)
-{
-    char *started  = in_root("started");
-    char *release  = in_root("release");
-    char *argvfile = in_root("argv");
-    char *grand    = in_root("grandchild");
+static char* record_once(bool expect_wrapper) {
+    char* started = in_root("started");
+    char* release = in_root("release");
+    char* argvfile = in_root("argv");
+    char* grand = in_root("grandchild");
 
     unlink(started);
     unlink(release);
     unlink(argvfile);
-    unlink(grand);                        /* never read a stale pid */
+    unlink(grand); /* never read a stale pid */
 
     CHECK(recorder_start(&g_ch, xstrdup(STREAM_URL)));
-    CHECK(wait_for(started));            /* the child is forked by now */
+    CHECK(wait_for(started)); /* the child is forked by now */
     CHECK(recorder_is_busy(&g_ch));
 
     channel_t foreign;
@@ -320,7 +309,7 @@ static char *record_once(bool expect_wrapper)
      * complete) before shutting down, which would otherwise SIGTERM it. */
     CHECK(write_file(release, "", 0644));
     CHECK(wait_for(argvfile));
-    recorder_shutdown();                 /* joins the recording thread */
+    recorder_shutdown(); /* joins the recording thread */
     CHECK(!recorder_is_busy(&g_ch));
 
     /*
@@ -332,7 +321,7 @@ static char *record_once(bool expect_wrapper)
      */
     check_grandchild_gone("the child exited on its own");
 
-    char *argv = read_file(argvfile);
+    char* argv = read_file(argvfile);
 
     if (argv) {
         /* The recording target is the probe's URL, never the channel
@@ -351,9 +340,8 @@ static char *record_once(bool expect_wrapper)
 }
 
 /* Check that argv carries "--ffmpeg-location" followed by `path`. */
-static void check_wrapper(const char *argv, const char *path)
-{
-    char *want = xmalloc(TEST_PATH);
+static void check_wrapper(const char* argv, const char* path) {
+    char* want = xmalloc(TEST_PATH);
     snprintf(want, TEST_PATH, "--ffmpeg-location\n%s\n", path);
     CHECK(strstr(argv, want) != NULL);
     free(want);
@@ -361,8 +349,7 @@ static void check_wrapper(const char *argv, const char *path)
 
 /* This binary's own path, and the directory holding it: the two halves of
  * what resolve_ffmpeg_wrapper() reads out of /proc/self/exe. */
-static char *self_exe(void)
-{
+static char* self_exe(void) {
     char buf[TEST_PATH];
     ssize_t n = readlink("/proc/self/exe", buf, sizeof buf - 1);
     if (n <= 0 || (size_t)n >= sizeof buf)
@@ -371,13 +358,12 @@ static char *self_exe(void)
     return xstrdup(buf);
 }
 
-static char *self_dir(const char *exe)
-{
-    const char *slash = exe ? strrchr(exe, '/') : NULL;
+static char* self_dir(const char* exe) {
+    const char* slash = exe ? strrchr(exe, '/') : NULL;
     if (!slash)
         return NULL;
     size_t len = (size_t)(slash - exe);
-    char *dir = xmalloc(len + 1);
+    char* dir = xmalloc(len + 1);
     memcpy(dir, exe, len);
     dir[len] = '\0';
     return dir;
@@ -393,15 +379,14 @@ static char *self_dir(const char *exe)
  * fallback to /proc/self/exe rather than to the working directory: the
  * same code, same cwd, different answer, because the binary moved.
  */
-static int phase_wrapperless(void)
-{
-    char *out   = in_root("out");
-    char *empty = in_root("empty");
+static int phase_wrapperless(void) {
+    char* out = in_root("out");
+    char* empty = in_root("empty");
 
     setenv("SS_WRAPPER_DIR", empty, 1);
     CHECK(recorder_init(&g_ch, 1, out));
 
-    char *argv = record_once(false);
+    char* argv = record_once(false);
     CHECK(argv != NULL);
     free(argv);
 
@@ -411,8 +396,7 @@ static int phase_wrapperless(void)
     return harness_exit("test_recorder[wrapperless]");
 }
 
-int main(void)
-{
+int main(void) {
     /*
      * The recorder logs every fork and every DONE at INFO, which is
      * evidence on a real run and noise in a test log. WARN still reaches
@@ -421,8 +405,8 @@ int main(void)
     log_set_level(LOG_WARN);
 
     /* The re-executed copy reports its own failures through its exit code. */
-    const char *reexec = getenv("SS_TEST_REEXEC");
-    const char *root = getenv("SS_TEST_ROOT");
+    const char* reexec = getenv("SS_TEST_REEXEC");
+    const char* root = getenv("SS_TEST_ROOT");
     if (reexec && root) {
         g_root = xstrdup(root);
         CHECK(channel_parse(CHAN_LINE, &g_ch));
@@ -434,31 +418,30 @@ int main(void)
     /* --- the temp tree and the fake yt-dlp --- */
 
     char tmpl[] = "/tmp/ss-test-recorder-XXXXXX";
-    char *made = mkdtemp(tmpl);
+    char* made = mkdtemp(tmpl);
     if (!made) {
-        fprintf(stderr, "test_recorder: cannot create a temp dir: %s\n",
-                strerror(errno));
+        fprintf(stderr, "test_recorder: cannot create a temp dir: %s\n", strerror(errno));
         return 1;
     }
     g_root = xstrdup(made);
 
-    char *bin    = in_root("bin");
-    char *out    = in_root("out");
-    char *wrap   = in_root("wrap");
-    char *empty  = in_root("empty");
-    char *naked  = in_root("naked");
-    char *fake   = in_root("bin/yt-dlp");
-    char *wrapper = in_root("wrap/ffmpeg-quiet");
-    CHECK(mkdir(bin, 0755)   == 0);
-    CHECK(mkdir(out, 0755)   == 0);
-    CHECK(mkdir(wrap, 0755)  == 0);
+    char* bin = in_root("bin");
+    char* out = in_root("out");
+    char* wrap = in_root("wrap");
+    char* empty = in_root("empty");
+    char* naked = in_root("naked");
+    char* fake = in_root("bin/yt-dlp");
+    char* wrapper = in_root("wrap/ffmpeg-quiet");
+    CHECK(mkdir(bin, 0755) == 0);
+    CHECK(mkdir(out, 0755) == 0);
+    CHECK(mkdir(wrap, 0755) == 0);
     CHECK(mkdir(empty, 0755) == 0);
     CHECK(mkdir(naked, 0755) == 0);
     CHECK(write_file(fake, FAKE_YTDLP, 0755));
 
     /* execvp() searches PATH, so the fake has to come first. */
-    const char *old_path = getenv("PATH");
-    char *path = xmalloc(TEST_PATH);
+    const char* old_path = getenv("PATH");
+    char* path = xmalloc(TEST_PATH);
     snprintf(path, TEST_PATH, "%s:%s", bin, old_path ? old_path : "/usr/bin:/bin");
     setenv("PATH", path, 1);
     setenv("SS_TEST_ROOT", g_root, 1);
@@ -471,7 +454,7 @@ int main(void)
     setenv("SS_WRAPPER_DIR", wrap, 1);
     CHECK(recorder_init(&g_ch, 1, out));
 
-    char *child_argv = record_once(true);
+    char* child_argv = record_once(true);
     CHECK(child_argv != NULL);
     if (child_argv) {
         /* What -v prints at startup is what yt-dlp is handed. */
@@ -480,7 +463,7 @@ int main(void)
         /* Both streams went to the channel log, not to this terminal. */
         char log[TEST_PATH];
         snprintf(log, sizeof log, "%s/%s.log", out, g_ch.slug);
-        char *logbody = read_file(log);
+        char* logbody = read_file(log);
         CHECK(logbody != NULL);
         if (logbody) {
             CHECK(strstr(logbody, "fake yt-dlp: stdout line") != NULL);
@@ -498,15 +481,15 @@ int main(void)
     child_argv = record_once(true);
     CHECK(child_argv != NULL);
     if (child_argv) {
-        char *exe = self_exe();
+        char* exe = self_exe();
         CHECK(exe != NULL);
-        char *dir = self_dir(exe);
+        char* dir = self_dir(exe);
         CHECK(dir != NULL);
         if (dir) {
             char beside[TEST_PATH];
             snprintf(beside, sizeof beside, "%s/ffmpeg-quiet", dir);
             if (!access(beside, X_OK))
-                check_wrapper(child_argv, beside);   /* `make test` copies it */
+                check_wrapper(child_argv, beside); /* `make test` copies it */
             else
                 CHECK(strstr(child_argv, "--ffmpeg-location") == NULL);
         }
@@ -517,9 +500,9 @@ int main(void)
 
     /* --- shutdown stops a recording that is still running --- */
 
-    char *started = in_root("started");
-    char *release = in_root("release");
-    char *grand   = in_root("grandchild");
+    char* started = in_root("started");
+    char* release = in_root("release");
+    char* grand = in_root("grandchild");
     unlink(started);
     unlink(release);
     unlink(grand);
@@ -541,7 +524,7 @@ int main(void)
     /* --- init with no recording at all: the dry-run path --- */
 
     CHECK(recorder_init(&g_ch, 1, out));
-    recorder_shutdown();                 /* no child, no thread, no slots kept */
+    recorder_shutdown(); /* no child, no thread, no slots kept */
 
     /* --- a channel the recorder was never given --- */
 
@@ -553,11 +536,11 @@ int main(void)
 
     /* --- outcome 3, from a directory with no wrapper beside the binary --- */
 
-    char *self = self_exe();
+    char* self = self_exe();
     CHECK(self != NULL);
     if (self) {
-        char *to = in_root("naked/test_recorder");
-        char *child = copy_file(self, to, 0755);
+        char* to = in_root("naked/test_recorder");
+        char* child = copy_file(self, to, 0755);
         CHECK(child != NULL);
         if (child) {
             setenv("SS_TEST_REEXEC", "1", 1);
@@ -567,7 +550,7 @@ int main(void)
             pid_t pid = fork();
             CHECK(pid >= 0);
             if (pid == 0) {
-                execl(child, child, (char *)NULL);
+                execl(child, child, (char*)NULL);
                 _exit(127);
             }
             int status = 0;

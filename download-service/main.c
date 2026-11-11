@@ -33,12 +33,12 @@ static void shutdown_handler(int sig) {
  */
 /* Strict decimal parser: the first character must be a digit, no trailing
  * garbage. Returns false for values outside [1, max]. */
-static bool parse_ulong_range(const char *str, unsigned long min,
-                              unsigned long max, unsigned long *out_value) {
+static bool parse_ulong_range(const char* str, unsigned long min, unsigned long max,
+                              unsigned long* out_value) {
     if (str[0] < '0' || str[0] > '9')
         return false;
 
-    char *end = NULL;
+    char* end = NULL;
     errno = 0;
     unsigned long value = strtoul(str, &end, 10);
 
@@ -53,12 +53,12 @@ static bool parse_ulong_range(const char *str, unsigned long min,
     return true;
 }
 
-static bool parse_port(const char *str, unsigned short *out_port) {
+static bool parse_port(const char* str, unsigned short* out_port) {
     if (str[0] < '0' || str[0] > '9') {
         return false;
     }
 
-    char *end = NULL;
+    char* end = NULL;
     errno = 0;
     unsigned long value = strtoul(str, &end, 10);
 
@@ -80,8 +80,8 @@ static bool parse_port(const char *str, unsigned short *out_port) {
 }
 
 /* Return the value of a required env var, or NULL if unset or empty. */
-static const char *require_env(const char *name) {
-    const char *value = getenv(name);
+static const char* require_env(const char* name) {
+    const char* value = getenv(name);
     if (!value || value[0] == '\0') {
         return NULL;
     }
@@ -89,7 +89,7 @@ static const char *require_env(const char *name) {
 }
 
 /* Append a name to a comma-separated "missing variables" list. */
-static void note_missing(char *list, size_t capacity, const char *name) {
+static void note_missing(char* list, size_t capacity, const char* name) {
     size_t used = strlen(list);
     if (used + strlen(name) + 2 >= capacity) {
         return; /* list is full; the caller still reports what fit */
@@ -97,7 +97,7 @@ static void note_missing(char *list, size_t capacity, const char *name) {
     snprintf(list + used, capacity - used, "%s%s", used ? ", " : "", name);
 }
 
-static void usage(const char *reason) {
+static void usage(const char* reason) {
     if (reason) {
         fprintf(stderr, "error: %s\n\n", reason);
     }
@@ -137,37 +137,35 @@ int main(void) {
         return 1;
     }
 
-    const char *port_str = require_env("PORT");
+    const char* port_str = require_env("PORT");
     if (!port_str) {
         char missing[128] = "";
         note_missing(missing, sizeof missing, "PORT");
 
         char reason[192];
-        snprintf(reason, sizeof reason,
-                 "missing required environment variable(s): %s", missing);
+        snprintf(reason, sizeof reason, "missing required environment variable(s): %s", missing);
         usage(reason);
         return 1;
     }
 
-    const char *storage_path = getenv("DOWNLOAD_STORAGE_PATH");
+    const char* storage_path = getenv("DOWNLOAD_STORAGE_PATH");
     if (!storage_path || storage_path[0] == '\0') {
         storage_path = DEFAULT_STORAGE_PATH;
     }
-    const char *yt_dlp_path = getenv("YTDLP_PATH");
+    const char* yt_dlp_path = getenv("YTDLP_PATH");
     if (!yt_dlp_path || yt_dlp_path[0] == '\0') {
         yt_dlp_path = "yt-dlp";
     }
     /* Where download results are POSTed when a download finishes
      * (download.callback.url). Empty disables callbacks. */
-    const char *callback_url = getenv("CALLBACK_URL");
+    const char* callback_url = getenv("CALLBACK_URL");
 
-    const char *concurrency_str = getenv("DOWNLOAD_CONCURRENCY");
+    const char* concurrency_str = getenv("DOWNLOAD_CONCURRENCY");
     if (!concurrency_str || concurrency_str[0] == '\0') {
         concurrency_str = NULL; /* use the default below */
     }
     unsigned long concurrency = DEFAULT_CONCURRENCY;
-    if (concurrency_str &&
-        !parse_ulong_range(concurrency_str, 1, 1024, &concurrency)) {
+    if (concurrency_str && !parse_ulong_range(concurrency_str, 1, 1024, &concurrency)) {
         char reason[192];
         snprintf(reason, sizeof reason,
                  "invalid DOWNLOAD_CONCURRENCY \"%s\": expected an integer "
@@ -182,8 +180,7 @@ int main(void) {
 
     if (!parse_port(port_str, &config.port)) {
         char reason[192];
-        snprintf(reason, sizeof reason,
-                 "invalid PORT \"%s\": expected an integer in 1-65535",
+        snprintf(reason, sizeof reason, "invalid PORT \"%s\": expected an integer in 1-65535",
                  port_str);
         usage(reason);
         return 1;
@@ -201,19 +198,17 @@ int main(void) {
     pool_config.callback_url = callback_url;
 
     if (worker_pool_start(&pool_config) != 0) {
-        fprintf(stderr,
-                "download-service: failed to start the download worker pool\n");
+        fprintf(stderr, "download-service: failed to start the download worker pool\n");
         return 1;
     }
 
     /* download.allowed_domains: comma-separated list, e.g.
      * youtube.com,www.youtube.com,m.youtube.com,youtu.be,www.youtu.be */
-    const char *allowed_domains_spec = getenv("DOWNLOAD_ALLOWED_DOMAINS");
+    const char* allowed_domains_spec = getenv("DOWNLOAD_ALLOWED_DOMAINS");
     if (allowed_domains_spec && allowed_domains_spec[0] != '\0') {
         if (!allowlist_parse(allowed_domains_spec, &config.allowed_domains)) {
-            fprintf(stderr,
-                    "download-service: failed to parse "
-                    "DOWNLOAD_ALLOWED_DOMAINS\n");
+            fprintf(stderr, "download-service: failed to parse "
+                            "DOWNLOAD_ALLOWED_DOMAINS\n");
             return 1;
         }
     }
@@ -225,8 +220,7 @@ int main(void) {
     allowlist_free(&config.allowed_domains);
 
     if (rc != 0) {
-        fprintf(stderr, "%s: server failed to start or stopped with an error\n",
-                PROG_NAME);
+        fprintf(stderr, "%s: server failed to start or stopped with an error\n", PROG_NAME);
     }
     return (rc == 0) ? 0 : 1;
 }

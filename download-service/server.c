@@ -4,23 +4,23 @@
 
 #include "server.h"
 
+#include "json.h"
+#include "worker_pool.h"
+
 #include <arpa/inet.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <limits.h>
 #include <netinet/in.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
-#include <fcntl.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/time.h>
 #include <sys/types.h>
 #include <unistd.h>
-
-#include "worker_pool.h"
-#include "json.h"
 
 /* Cleared by the SIGINT/SIGTERM handler to unwind the accept loop. */
 volatile sig_atomic_t g_keep_running = 1;
@@ -34,37 +34,36 @@ volatile sig_atomic_t g_keep_running = 1;
 
 /* ---------- status helpers ---------- */
 
-static const char *status_reason(int code) {
+static const char* status_reason(int code) {
     switch (code) {
-    case 200:
-        return "OK";
-    case 400:
-        return "Bad Request";
-    case 404:
-        return "Not Found";
-    case 405:
-        return "Method Not Allowed";
-    case 411:
-        return "Length Required";
-    case 413:
-        return "Payload Too Large";
-    case 429:
-        return "Too Many Requests";
-    case 431:
-        return "Request Header Fields Too Large";
-    case 500:
-        return "Internal Server Error";
-    case 502:
-        return "Bad Gateway";
-    default:
-        return "Unknown";
+        case 200:
+            return "OK";
+        case 400:
+            return "Bad Request";
+        case 404:
+            return "Not Found";
+        case 405:
+            return "Method Not Allowed";
+        case 411:
+            return "Length Required";
+        case 413:
+            return "Payload Too Large";
+        case 429:
+            return "Too Many Requests";
+        case 431:
+            return "Request Header Fields Too Large";
+        case 500:
+            return "Internal Server Error";
+        case 502:
+            return "Bad Gateway";
+        default:
+            return "Unknown";
     }
 }
 
-static void set_response(http_response_t *response, int status) {
+static void set_response(http_response_t* response, int status) {
     int written = snprintf(response->body, sizeof(response->body),
-                           "{\"status\": %d, \"message\": \"%s\"}", status,
-                           status_reason(status));
+                           "{\"status\": %d, \"message\": \"%s\"}", status, status_reason(status));
     if (written < 0) {
         written = 0;
     } else if ((size_t)written >= sizeof(response->body)) {
@@ -78,12 +77,11 @@ static void set_response(http_response_t *response, int status) {
 /* ---------- header parsing ---------- */
 
 /* Locate the "\r\n\r\n" terminator within the first `len` bytes of `buf`. */
-static char *find_header_end(char *buf, size_t len) {
+static char* find_header_end(char* buf, size_t len) {
     if (len < 4)
         return NULL;
     for (size_t i = 0; i + 3 < len; i++) {
-        if (buf[i] == '\r' && buf[i + 1] == '\n' && buf[i + 2] == '\r' &&
-            buf[i + 3] == '\n') {
+        if (buf[i] == '\r' && buf[i + 1] == '\n' && buf[i + 2] == '\r' && buf[i + 3] == '\n') {
             return buf + i;
         }
     }
@@ -94,9 +92,9 @@ static char *find_header_end(char *buf, size_t len) {
  * Parse "METHOD SP /path SP HTTP/x.y" into its method and path components.
  * Any query string or fragment is stripped; `line` must be NUL-terminated.
  */
-static bool parse_request_line(const char *line, char *method,
-                               size_t method_cap, char *path, size_t path_cap) {
-    const char *sp1 = strchr(line, ' ');
+static bool parse_request_line(const char* line, char* method, size_t method_cap, char* path,
+                               size_t path_cap) {
+    const char* sp1 = strchr(line, ' ');
     if (!sp1 || sp1 == line)
         return false;
 
@@ -106,8 +104,8 @@ static bool parse_request_line(const char *line, char *method,
     memcpy(method, line, method_len);
     method[method_len] = '\0';
 
-    const char *target = sp1 + 1;
-    const char *sp2 = strchr(target, ' ');
+    const char* target = sp1 + 1;
+    const char* sp2 = strchr(target, ' ');
     size_t path_len = sp2 ? (size_t)(sp2 - target) : strlen(target);
 
     /* Strip the query string / fragment so "/x?y=1" routes as "/x". */
@@ -131,12 +129,11 @@ typedef enum {
     CL_MALFORMED /* header present but not a valid non-negative integer */
 } content_length_state_t;
 
-static content_length_state_t parse_content_length(const char *headers,
-                                                   long *out_value) {
-    const char *eol = strstr(headers, "\r\n");
+static content_length_state_t parse_content_length(const char* headers, long* out_value) {
+    const char* eol = strstr(headers, "\r\n");
     if (!eol)
         return CL_ABSENT;
-    const char *line = eol + 2; /* skip the request line */
+    const char* line = eol + 2; /* skip the request line */
 
     while (*line) {
         /*
@@ -144,28 +141,26 @@ static content_length_state_t parse_content_length(const char *headers,
          * have stripped the final CRLF when terminating the buffer, so the
          * last header line must still be recognised.
          */
-        const char *crlf = strstr(line, "\r\n");
+        const char* crlf = strstr(line, "\r\n");
         size_t line_len = crlf ? (size_t)(crlf - line) : strlen(line);
         if (line_len == 0)
             break; /* empty line: end of the header block */
 
-        const char *colon = memchr(line, ':', line_len);
+        const char* colon = memchr(line, ':', line_len);
         if (colon) {
             size_t name_len = (size_t)(colon - line);
-            while (name_len > 0 &&
-                   (line[name_len - 1] == ' ' || line[name_len - 1] == '\t')) {
+            while (name_len > 0 && (line[name_len - 1] == ' ' || line[name_len - 1] == '\t')) {
                 name_len--;
             }
-            if (name_len == 14 &&
-                strncasecmp(line, "Content-Length", 14) == 0) {
-                const char *value = colon + 1;
+            if (name_len == 14 && strncasecmp(line, "Content-Length", 14) == 0) {
+                const char* value = colon + 1;
                 size_t value_len = line_len - name_len - 1;
                 while (value_len > 0 && (*value == ' ' || *value == '\t')) {
                     value++;
                     value_len--;
                 }
-                while (value_len > 0 && (value[value_len - 1] == ' ' ||
-                                         value[value_len - 1] == '\t')) {
+                while (value_len > 0 &&
+                       (value[value_len - 1] == ' ' || value[value_len - 1] == '\t')) {
                     value_len--;
                 }
                 if (value_len == 0)
@@ -194,7 +189,7 @@ static content_length_state_t parse_content_length(const char *headers,
 
 /* ---------- socket I/O ---------- */
 
-static bool send_all(int fd, const char *data, size_t len) {
+static bool send_all(int fd, const char* data, size_t len) {
     size_t sent = 0;
     while (sent < len) {
         ssize_t n = send(fd, data + sent, len - sent, MSG_NOSIGNAL);
@@ -208,17 +203,16 @@ static bool send_all(int fd, const char *data, size_t len) {
     return true;
 }
 
-static void send_http_response(int fd, const http_response_t *response) {
+static void send_http_response(int fd, const http_response_t* response) {
     char head[256];
-    int head_len =
-        snprintf(head, sizeof(head),
-                 "HTTP/1.1 %d %s\r\n"
-                 "Content-Type: application/json\r\n"
-                 "Content-Length: %zu\r\n"
-                 "Connection: close\r\n"
-                 "\r\n",
-                 response->status_code, status_reason(response->status_code),
-                 response->body_length);
+    int head_len = snprintf(head, sizeof(head),
+                            "HTTP/1.1 %d %s\r\n"
+                            "Content-Type: application/json\r\n"
+                            "Content-Length: %zu\r\n"
+                            "Connection: close\r\n"
+                            "\r\n",
+                            response->status_code, status_reason(response->status_code),
+                            response->body_length);
     if (head_len < 0)
         return;
     if ((size_t)head_len >= sizeof(head))
@@ -237,10 +231,9 @@ static void send_http_response(int fd, const http_response_t *response) {
  * Returns 0 on success (with *body_len_out set), READ_ABORT to drop the
  * connection silently, or an HTTP status to report a framing error.
  */
-static int read_http_request(int fd, char *header_buf, char *body_buf,
-                             size_t *body_len_out) {
+static int read_http_request(int fd, char* header_buf, char* body_buf, size_t* body_len_out) {
     size_t total = 0;
-    char *header_end = NULL;
+    char* header_end = NULL;
 
     *body_len_out = 0;
 
@@ -265,8 +258,7 @@ static int read_http_request(int fd, char *header_buf, char *body_buf,
     }
 
     size_t headers_len = (size_t)(header_end - header_buf) + 4;
-    header_buf[headers_len - 4] =
-        '\0'; /* terminate the block for the parsers */
+    header_buf[headers_len - 4] = '\0'; /* terminate the block for the parsers */
 
     /*
      * The recv() that completed "\r\n\r\n" almost always over-read into the
@@ -278,15 +270,13 @@ static int read_http_request(int fd, char *header_buf, char *body_buf,
     }
 
     long content_length = 0;
-    content_length_state_t cl_state =
-        parse_content_length(header_buf, &content_length);
+    content_length_state_t cl_state = parse_content_length(header_buf, &content_length);
     if (cl_state == CL_MALFORMED)
         return 400;
 
     size_t body_len;
     if (cl_state == CL_PRESENT) {
-        if (content_length < 0 ||
-            (unsigned long)content_length > (unsigned long)MAX_HTTP_BODY) {
+        if (content_length < 0 || (unsigned long)content_length > (unsigned long)MAX_HTTP_BODY) {
             return 413;
         }
         body_len = (size_t)content_length;
@@ -330,14 +320,12 @@ static int read_http_request(int fd, char *header_buf, char *body_buf,
  * Unsupported domains are rejected with 400 before any job is created, so no
  * download is ever started for them.
  */
-static void handle_download(const server_config_t *config, int client_fd,
-                            const char *body, size_t body_length,
-                            http_response_t *response) {
+static void handle_download(const server_config_t* config, int client_fd, const char* body,
+                            size_t body_length, http_response_t* response) {
     (void)client_fd;
 
     char body_copy[MAX_HTTP_BODY + 1];
-    size_t copy_len =
-        body_length > (size_t)MAX_HTTP_BODY ? (size_t)MAX_HTTP_BODY : body_length;
+    size_t copy_len = body_length > (size_t)MAX_HTTP_BODY ? (size_t)MAX_HTTP_BODY : body_length;
     if (copy_len > 0 && body) {
         memcpy(body_copy, body, copy_len);
     }
@@ -350,9 +338,12 @@ static void handle_download(const server_config_t *config, int client_fd,
         return;
     }
 
+    fprintf(stderr, "download-service: call received chat_id=%d url=%s\n",
+            payload.chat_id, payload.url);
+
     if (!is_supported(payload.url, &config->allowed_domains)) {
-        int written = snprintf(response->body, sizeof(response->body),
-                               "{\"error\": \"unsupported_domain\"}");
+        int written =
+            snprintf(response->body, sizeof(response->body), "{\"error\": \"unsupported_domain\"}");
         if (written < 0)
             written = 0;
         else if ((size_t)written >= sizeof(response->body))
@@ -362,9 +353,9 @@ static void handle_download(const server_config_t *config, int client_fd,
         return;
     }
 
-    const char *format = payload.format[0] == '\0' ? "video" : payload.format;
+    const char* format = payload.format[0] == '\0' ? "video" : payload.format;
 
-    job_t *job = job_create(payload.url, payload.chat_id, format);
+    job_t* job = job_create(payload.url, payload.chat_id, format);
     if (!job) {
         set_response(response, 500);
         return;
@@ -375,8 +366,8 @@ static void handle_download(const server_config_t *config, int client_fd,
         return;
     }
 
-    int written = snprintf(response->body, sizeof(response->body),
-                           "{\"job_id\": \"%s\"}", job->job_id);
+    int written =
+        snprintf(response->body, sizeof(response->body), "{\"job_id\": \"%s\"}", job->job_id);
     if (written < 0)
         written = 0;
     else if ((size_t)written >= sizeof(response->body))
@@ -387,9 +378,8 @@ static void handle_download(const server_config_t *config, int client_fd,
 
 /* ---------- routing ---------- */
 
-void request_handler_dispatch(const server_config_t *config, int client_fd,
-                              const char *headers, const char *body,
-                              size_t body_length, http_response_t *response) {
+void request_handler_dispatch(const server_config_t* config, int client_fd, const char* headers,
+                              const char* body, size_t body_length, http_response_t* response) {
     if (!response)
         return;
     response->handled_directly = false;
@@ -400,8 +390,7 @@ void request_handler_dispatch(const server_config_t *config, int client_fd,
 
     char method[MAX_METHOD_LEN];
     char path[MAX_PATH_LEN];
-    if (!parse_request_line(headers, method, sizeof(method), path,
-                            sizeof(path))) {
+    if (!parse_request_line(headers, method, sizeof(method), path, sizeof(path))) {
         set_response(response, 400);
         return;
     }
@@ -413,8 +402,7 @@ void request_handler_dispatch(const server_config_t *config, int client_fd,
             return;
         }
         set_response(response, 200);
-        int written =
-            snprintf(response->body, sizeof(response->body), "{\"status\": \"ok\"}");
+        int written = snprintf(response->body, sizeof(response->body), "{\"status\": \"ok\"}");
         if (written < 0)
             written = 0;
         response->body_length = (size_t)written;
@@ -432,8 +420,7 @@ void request_handler_dispatch(const server_config_t *config, int client_fd,
     }
 
     long content_length = 0;
-    content_length_state_t cl_state =
-        parse_content_length(headers, &content_length);
+    content_length_state_t cl_state = parse_content_length(headers, &content_length);
     if (cl_state == CL_MALFORMED) {
         set_response(response, 400);
         return;
@@ -442,8 +429,7 @@ void request_handler_dispatch(const server_config_t *config, int client_fd,
         set_response(response, 411);
         return;
     }
-    if (content_length < 0 ||
-        (unsigned long)content_length > (unsigned long)MAX_HTTP_BODY) {
+    if (content_length < 0 || (unsigned long)content_length > (unsigned long)MAX_HTTP_BODY) {
         set_response(response, 413);
         return;
     }
@@ -458,7 +444,7 @@ void request_handler_dispatch(const server_config_t *config, int client_fd,
 
 /* ---------- accept loop ---------- */
 
-int request_handler_start(const server_config_t *config) {
+int request_handler_start(const server_config_t* config) {
     if (!config)
         return -1;
 
@@ -469,8 +455,7 @@ int request_handler_start(const server_config_t *config) {
     }
 
     int opt = 1;
-    if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) <
-        0) {
+    if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0) {
         perror("setsockopt(SO_REUSEADDR)");
         close(server_fd);
         return -1;
@@ -482,7 +467,7 @@ int request_handler_start(const server_config_t *config) {
     addr.sin_addr.s_addr = htonl(INADDR_ANY);
     addr.sin_port = htons(config->port);
 
-    if (bind(server_fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+    if (bind(server_fd, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
         perror("bind");
         close(server_fd);
         return -1;
@@ -494,8 +479,8 @@ int request_handler_start(const server_config_t *config) {
         return -1;
     }
 
-    char *header_buf = malloc(MAX_HEADER_SIZE);
-    char *body_buf = malloc((size_t)MAX_HTTP_BODY + 1);
+    char* header_buf = malloc(MAX_HEADER_SIZE);
+    char* body_buf = malloc((size_t)MAX_HTTP_BODY + 1);
     if (!header_buf || !body_buf) {
         perror("malloc");
         free(header_buf);
@@ -504,8 +489,7 @@ int request_handler_start(const server_config_t *config) {
         return -1;
     }
 
-    fprintf(stderr, "download-service listening on 0.0.0.0:%u\n",
-            (unsigned int)config->port);
+    fprintf(stderr, "download-service listening on 0.0.0.0:%u\n", (unsigned int)config->port);
 
     while (g_keep_running) {
         int client_fd = accept(server_fd, NULL, NULL);
@@ -522,8 +506,7 @@ int request_handler_start(const server_config_t *config) {
         setsockopt(client_fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
 
         size_t body_length = 0;
-        int status =
-            read_http_request(client_fd, header_buf, body_buf, &body_length);
+        int status = read_http_request(client_fd, header_buf, body_buf, &body_length);
 
         http_response_t response;
         if (status == READ_ABORT) {
@@ -532,8 +515,8 @@ int request_handler_start(const server_config_t *config) {
         }
 
         if (status == 0) {
-            request_handler_dispatch(config, client_fd, header_buf, body_buf,
-                                     body_length, &response);
+            request_handler_dispatch(config, client_fd, header_buf, body_buf, body_length,
+                                     &response);
         } else {
             set_response(&response, status);
         }

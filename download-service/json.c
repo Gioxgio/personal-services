@@ -4,7 +4,7 @@
 #include <limits.h>
 #include <string.h>
 
-static bool skip_string(const char **p) {
+static bool skip_string(const char** p) {
     (*p)++; /* skip opening quote */
     while (**p && **p != '"') {
         if (**p == '\\') {
@@ -32,7 +32,7 @@ static bool skip_string(const char **p) {
     return true;
 }
 
-static bool skip_value(const char **p) {
+static bool skip_value(const char** p) {
     while (**p && isspace((unsigned char)**p))
         (*p)++;
 
@@ -102,15 +102,14 @@ static bool skip_value(const char **p) {
         return false;
     } else {
         /* number, true, false, null */
-        while (**p && **p != ',' && **p != '}' && **p != ']' &&
-               !isspace((unsigned char)**p)) {
+        while (**p && **p != ',' && **p != '}' && **p != ']' && !isspace((unsigned char)**p)) {
             (*p)++;
         }
         return true;
     }
 }
 
-bool json_parse_download(const char *json_raw, download_payload_t *out_payload) {
+bool json_parse_download(const char* json_raw, download_payload_t* out_payload) {
     if (!json_raw || !out_payload)
         return false;
 
@@ -118,7 +117,7 @@ bool json_parse_download(const char *json_raw, download_payload_t *out_payload) 
     out_payload->format[0] = '\0';
     out_payload->chat_id = 0;
 
-    const char *p = json_raw;
+    const char* p = json_raw;
 
     /* Skip leading whitespace */
     while (*p && isspace((unsigned char)*p))
@@ -192,42 +191,42 @@ bool json_parse_download(const char *json_raw, download_payload_t *out_payload) 
                         return false;
                     char esc = *p++;
                     switch (esc) {
-                    case '"':
-                        if (len < MAX_DOWNLOAD_URL)
-                            out_payload->url[len++] = '"';
-                        break;
-                    case '\\':
-                        if (len < MAX_DOWNLOAD_URL)
-                            out_payload->url[len++] = '\\';
-                        break;
-                    case '/':
-                        if (len < MAX_DOWNLOAD_URL)
-                            out_payload->url[len++] = '/';
-                        break;
-                    case 'b':
-                        if (len < MAX_DOWNLOAD_URL)
-                            out_payload->url[len++] = '\b';
-                        break;
-                    case 'f':
-                        if (len < MAX_DOWNLOAD_URL)
-                            out_payload->url[len++] = '\f';
-                        break;
-                    case 'n':
-                        if (len < MAX_DOWNLOAD_URL)
-                            out_payload->url[len++] = '\n';
-                        break;
-                    case 'r':
-                        if (len < MAX_DOWNLOAD_URL)
-                            out_payload->url[len++] = '\r';
-                        break;
-                    case 't':
-                        if (len < MAX_DOWNLOAD_URL)
-                            out_payload->url[len++] = '\t';
-                        break;
-                    case 'u':
-                        return false; /* \uXXXX not supported */
-                    default:
-                        return false; /* invalid escape */
+                        case '"':
+                            if (len < MAX_DOWNLOAD_URL)
+                                out_payload->url[len++] = '"';
+                            break;
+                        case '\\':
+                            if (len < MAX_DOWNLOAD_URL)
+                                out_payload->url[len++] = '\\';
+                            break;
+                        case '/':
+                            if (len < MAX_DOWNLOAD_URL)
+                                out_payload->url[len++] = '/';
+                            break;
+                        case 'b':
+                            if (len < MAX_DOWNLOAD_URL)
+                                out_payload->url[len++] = '\b';
+                            break;
+                        case 'f':
+                            if (len < MAX_DOWNLOAD_URL)
+                                out_payload->url[len++] = '\f';
+                            break;
+                        case 'n':
+                            if (len < MAX_DOWNLOAD_URL)
+                                out_payload->url[len++] = '\n';
+                            break;
+                        case 'r':
+                            if (len < MAX_DOWNLOAD_URL)
+                                out_payload->url[len++] = '\r';
+                            break;
+                        case 't':
+                            if (len < MAX_DOWNLOAD_URL)
+                                out_payload->url[len++] = '\t';
+                            break;
+                        case 'u':
+                            return false; /* \uXXXX not supported */
+                        default:
+                            return false; /* invalid escape */
                     }
                     continue;
                 }
@@ -256,42 +255,42 @@ bool json_parse_download(const char *json_raw, download_payload_t *out_payload) 
                         return false;
                     char esc = *p++;
                     switch (esc) {
-                    case '"':
-                        if (len < MAX_DOWNLOAD_FORMAT)
-                            out_payload->format[len++] = '"';
-                        break;
-                    case '\\':
-                        if (len < MAX_DOWNLOAD_FORMAT)
-                            out_payload->format[len++] = '\\';
-                        break;
-                    case '/':
-                        if (len < MAX_DOWNLOAD_FORMAT)
-                            out_payload->format[len++] = '/';
-                        break;
-                    case 'b':
-                        if (len < MAX_DOWNLOAD_FORMAT)
-                            out_payload->format[len++] = '\b';
-                        break;
-                    case 'f':
-                        if (len < MAX_DOWNLOAD_FORMAT)
-                            out_payload->format[len++] = '\f';
-                        break;
-                    case 'n':
-                        if (len < MAX_DOWNLOAD_FORMAT)
-                            out_payload->format[len++] = '\n';
-                        break;
-                    case 'r':
-                        if (len < MAX_DOWNLOAD_FORMAT)
-                            out_payload->format[len++] = '\r';
-                        break;
-                    case 't':
-                        if (len < MAX_DOWNLOAD_FORMAT)
-                            out_payload->format[len++] = '\t';
-                        break;
-                    case 'u':
-                        return false; /* \uXXXX not supported */
-                    default:
-                        return false; /* invalid escape */
+                        case '"':
+                            if (len < MAX_DOWNLOAD_FORMAT)
+                                out_payload->format[len++] = '"';
+                            break;
+                        case '\\':
+                            if (len < MAX_DOWNLOAD_FORMAT)
+                                out_payload->format[len++] = '\\';
+                            break;
+                        case '/':
+                            if (len < MAX_DOWNLOAD_FORMAT)
+                                out_payload->format[len++] = '/';
+                            break;
+                        case 'b':
+                            if (len < MAX_DOWNLOAD_FORMAT)
+                                out_payload->format[len++] = '\b';
+                            break;
+                        case 'f':
+                            if (len < MAX_DOWNLOAD_FORMAT)
+                                out_payload->format[len++] = '\f';
+                            break;
+                        case 'n':
+                            if (len < MAX_DOWNLOAD_FORMAT)
+                                out_payload->format[len++] = '\n';
+                            break;
+                        case 'r':
+                            if (len < MAX_DOWNLOAD_FORMAT)
+                                out_payload->format[len++] = '\r';
+                            break;
+                        case 't':
+                            if (len < MAX_DOWNLOAD_FORMAT)
+                                out_payload->format[len++] = '\t';
+                            break;
+                        case 'u':
+                            return false; /* \uXXXX not supported */
+                        default:
+                            return false; /* invalid escape */
                     }
                     continue;
                 }
@@ -358,8 +357,7 @@ bool json_parse_download(const char *json_raw, download_payload_t *out_payload) 
     }
 
     /* format must be "audio" or "video" */
-    if (strcmp(out_payload->format, "audio") != 0 &&
-        strcmp(out_payload->format, "video") != 0) {
+    if (strcmp(out_payload->format, "audio") != 0 && strcmp(out_payload->format, "video") != 0) {
         return false;
     }
 

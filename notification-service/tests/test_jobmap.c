@@ -7,7 +7,7 @@
 static int passed = 0;
 static int failed = 0;
 
-static void check(bool condition, const char *name) {
+static void check(bool condition, const char* name) {
     if (condition) {
         printf("PASS: %s\n", name);
         passed++;

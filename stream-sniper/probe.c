@@ -1,14 +1,14 @@
 #include "probe.h"
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
 #include "http.h"
 #include "jsonlite.h"
 #include "log.h"
 #include "twitch_auth.h"
 #include "util.h"
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 /*
  * Twitch: GET /helix/streams?user_login=X. Live <=> "type":"live" present.
@@ -16,25 +16,22 @@
  * timeout says nothing about the token, so dropping it there just spends a
  * mint on nothing.
  */
-static probe_result_t twitch_live(const channel_t *ch,
-                                  char **out_stream_url)
-{
+static probe_result_t twitch_live(const channel_t* ch, char** out_stream_url) {
     char url[512], client_hdr[160], auth_hdr[640];
-    snprintf(url, sizeof url,
-             "https://api.twitch.tv/helix/streams?user_login=%s", ch->slug);
+    snprintf(url, sizeof url, "https://api.twitch.tv/helix/streams?user_login=%s", ch->slug);
     snprintf(client_hdr, sizeof client_hdr, "Client-ID: %s", twitch_auth_client_id());
 
     for (int attempt = 0; attempt < 2; attempt++) {
-        const char *token = twitch_auth_token();
+        const char* token = twitch_auth_token();
         if (!token) {
             /* No credentials, or minting failed: Twitch probing is off. */
             return PROBE_OFFLINE;
         }
 
         snprintf(auth_hdr, sizeof auth_hdr, "Authorization: Bearer %s", token);
-        const char *hdrs[] = { client_hdr, auth_hdr, NULL };
+        const char* hdrs[] = {client_hdr, auth_hdr, NULL};
 
-        http_buffer body = { 0 };
+        http_buffer body = {0};
         long status = 0;
         int rc = http_get_ex(url, hdrs, &body, &status);
         if (rc == 0) {
@@ -84,13 +81,11 @@ static probe_result_t twitch_live(const channel_t *ch,
 /* How many /streams entries to verify before calling a channel offline. */
 #define YT_STREAMS_PROBES 3
 
-static probe_result_t youtube_live(const channel_t *ch,
-                                       char **out_stream_url)
-{
+static probe_result_t youtube_live(const channel_t* ch, char** out_stream_url) {
     char page[512];
     snprintf(page, sizeof page, "%s/streams", ch->url);
 
-    http_buffer body = { 0 };
+    http_buffer body = {0};
     if (http_get(page, NULL, &body) != 0) {
         http_buffer_free(&body);
         return PROBE_ERROR;
@@ -103,8 +98,7 @@ static probe_result_t youtube_live(const channel_t *ch,
      * reached.
      */
     char vids[YT_STREAMS_PROBES][32];
-    size_t nv = json_collect_strings(body.data, "videoId",
-                                       vids, YT_STREAMS_PROBES);
+    size_t nv = json_collect_strings(body.data, "videoId", vids, YT_STREAMS_PROBES);
     http_buffer_free(&body);
 
     if (nv == 0) {
@@ -120,10 +114,9 @@ static probe_result_t youtube_live(const channel_t *ch,
     bool all_failed = true;
     for (size_t k = 0; k < nv; k++) {
         char watch[128];
-        snprintf(watch, sizeof watch,
-                 "https://www.youtube.com/watch?v=%s", vids[k]);
+        snprintf(watch, sizeof watch, "https://www.youtube.com/watch?v=%s", vids[k]);
 
-        http_buffer w = { 0 };
+        http_buffer w = {0};
         if (http_get(watch, NULL, &w) != 0) {
             http_buffer_free(&w);
             continue;
@@ -148,8 +141,7 @@ static probe_result_t youtube_live(const channel_t *ch,
  * the caller owns the freshly allocated URL; the channel itself
  * is read, never written.
  */
-probe_result_t probe_is_live(const channel_t *ch, char **out_stream_url)
-{
+probe_result_t probe_is_live(const channel_t* ch, char** out_stream_url) {
     *out_stream_url = NULL;
     if (ch->src == SRC_TWITCH)
         return twitch_live(ch, out_stream_url);

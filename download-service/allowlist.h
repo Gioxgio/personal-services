@@ -12,7 +12,7 @@
  * and www.youtu.be matches youtu.be. Matching is case-insensitive.
  */
 typedef struct {
-    char **domains; /* heap-allocated array of heap-allocated strings */
+    char** domains; /* heap-allocated array of heap-allocated strings */
     size_t count;
 } allowlist_t;
 
@@ -23,16 +23,16 @@ typedef struct {
  * success. An empty or NULL spec yields an empty allowlist. `list` is reset
  * to empty on failure.
  */
-bool allowlist_parse(const char *spec, allowlist_t *list);
+bool allowlist_parse(const char* spec, allowlist_t* list);
 
 /* Release memory owned by `list`. Safe to call on an empty list. */
-void allowlist_free(allowlist_t *list);
+void allowlist_free(allowlist_t* list);
 
 /*
  * Return true if the host of `url` is allowed by `list`. The URL may include a
  * scheme, port, path, query and fragment; only the host is compared. Returns
  * false for URLs without a usable host.
  */
-bool is_supported(const char *url, const allowlist_t *list);
+bool is_supported(const char* url, const allowlist_t* list);
 
 #endif

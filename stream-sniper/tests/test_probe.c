@@ -20,41 +20,38 @@
  */
 
 #include "harness.h"
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
 #include "http.h"
 #include "notify.h"
 #include "probe.h"
 #include "twitch_auth.h"
 #include "urlparse.h"
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
 /* --- the URL -> fixture map --- */
 
-static const char *fixture_for(const char *url)
-{
+static const char* fixture_for(const char* url) {
     /* Twitch: .../helix/streams?user_login=<slug> */
-    const char *q = strstr(url, "user_login=");
+    const char* q = strstr(url, "user_login=");
     if (q) {
-        const char *slug = q + strlen("user_login=");
+        const char* slug = q + strlen("user_login=");
         if (!strncmp(slug, "live", 4))
             return "tests/fixtures/twitch_streams_live.html";
         if (!strncmp(slug, "off", 3))
             return "tests/fixtures/twitch_streams_offline.html";
         if (!strncmp(slug, "stale", 5))
             return "tests/fixtures/twitch_streams_live.html";
-        return NULL;                    /* unknown slug: dead host */
+        return NULL; /* unknown slug: dead host */
     }
 
     /* YouTube watch page: the videoId picks the fixture. */
-    const char *w = strstr(url, "watch?v=");
+    const char* w = strstr(url, "watch?v=");
     if (w) {
-        const char *vid = w + strlen("watch?v=");
-        return !strncmp(vid, "LIVE", 4)
-                   ? "tests/fixtures/youtube_watch_live.html"
-                   : "tests/fixtures/youtube_watch_vod.html";
+        const char* vid = w + strlen("watch?v=");
+        return !strncmp(vid, "LIVE", 4) ? "tests/fixtures/youtube_watch_live.html"
+                                        : "tests/fixtures/youtube_watch_vod.html";
     }
 
     /* YouTube /streams page: identify the channel by its handle. */
@@ -68,18 +65,17 @@ static const char *fixture_for(const char *url)
 }
 
 /* Read a whole file into a NUL-terminated heap buffer; NULL on failure. */
-static char *read_file(const char *path)
-{
-    FILE *f = fopen(path, "rb");
+static char* read_file(const char* path) {
+    FILE* f = fopen(path, "rb");
     if (!f)
         return NULL;
 
-    char *buf = NULL;
+    char* buf = NULL;
     size_t len = 0, cap = 0;
     for (;;) {
         if (len + 256 + 1 > cap) {
             cap = cap ? cap * 2 : 1024;
-            char *p = realloc(buf, cap);
+            char* p = realloc(buf, cap);
             if (!p) {
                 free(buf);
                 fclose(f);
@@ -108,15 +104,14 @@ static char *read_file(const char *path)
  * contract hands back an empty buffer, and the caller zero-
  * initialises before the call.
  */
-static int stub_get_ex(const char *url, const char *const *headers,
-                       http_buffer *out, long *status_out)
-{
+static int stub_get_ex(const char* url, const char* const* headers, http_buffer* out,
+                       long* status_out) {
     (void)headers;
 
-    const char *fix = fixture_for(url);
+    const char* fix = fixture_for(url);
     if (!fix) {
         if (status_out)
-            *status_out = 0;            /* no HTTP response received */
+            *status_out = 0; /* no HTTP response received */
         return -1;
     }
 
@@ -126,7 +121,7 @@ static int stub_get_ex(const char *url, const char *const *headers,
      * re-mints), the second sees the channel live. The fixture
      * is the same; only the status differs.
      */
-    const char *q = strstr(url, "user_login=");
+    const char* q = strstr(url, "user_login=");
     if (q && !strncmp(q + strlen("user_login="), "stale", 5)) {
         static int attempts;
         if (++attempts == 1) {
@@ -136,7 +131,7 @@ static int stub_get_ex(const char *url, const char *const *headers,
         }
     }
 
-    char *body = read_file(fix);
+    char* body = read_file(fix);
     if (!body) {
         if (status_out)
             *status_out = 0;
@@ -149,14 +144,11 @@ static int stub_get_ex(const char *url, const char *const *headers,
     return 0;
 }
 
-int http_get(const char *url, const char *const *headers, http_buffer *out)
-{
+int http_get(const char* url, const char* const* headers, http_buffer* out) {
     return stub_get_ex(url, headers, out, NULL);
 }
 
-int http_get_ex(const char *url, const char *const *headers,
-                http_buffer *out, long *status_out)
-{
+int http_get_ex(const char* url, const char* const* headers, http_buffer* out, long* status_out) {
     return stub_get_ex(url, headers, out, status_out);
 }
 
@@ -167,8 +159,7 @@ int http_get_ex(const char *url, const char *const *headers,
  * linked here - its getters would collide with the stubs above -
  * which is the only reason this function is not the original.
  */
-void http_buffer_free(http_buffer *buf)
-{
+void http_buffer_free(http_buffer* buf) {
     if (!buf)
         return;
     free(buf->data);
@@ -178,37 +169,32 @@ void http_buffer_free(http_buffer *buf)
 
 /* --- the twitch_auth seam: a token that can be invalidated --- */
 
-static const char *g_token = "first-token";
+static const char* g_token = "first-token";
 static int g_invalidated;
 
-const char *twitch_auth_client_id(void)
-{
+const char* twitch_auth_client_id(void) {
     return "test-client-id";
 }
 
-const char *twitch_auth_token(void)
-{
+const char* twitch_auth_token(void) {
     return g_token;
 }
 
-void twitch_auth_invalidate(void)
-{
+void twitch_auth_invalidate(void) {
     g_token = "second-token";
     g_invalidated++;
 }
 
 /* --- the notify seam: notifications off --- */
 
-void notify_init(void) { }
+void notify_init(void) {
+}
 
-void notify_recording_started(const channel_t *ch)
-{
+void notify_recording_started(const channel_t* ch) {
     (void)ch;
 }
 
-void notify_recording_stopped(const channel_t *ch, bool clean,
-                              const char *dur)
-{
+void notify_recording_stopped(const channel_t* ch, bool clean, const char* dur) {
     (void)ch;
     (void)clean;
     (void)dur;
@@ -217,24 +203,22 @@ void notify_recording_stopped(const channel_t *ch, bool clean,
 /* The production probe, compiled in against the seam above. */
 #include "../probe.c"
 
-int main(void)
-{
+int main(void) {
     channel_t ch;
-    char *url;
+    char* url;
 
     /* --- Twitch: the "type":"live" predicate --- */
 
     CHECK(channel_parse("twitch: livechan", &ch));
-    url = (char *)"sentinel";
+    url = (char*)"sentinel";
     CHECK(probe_is_live(&ch, &url) == PROBE_LIVE);
-    CHECK_STR_EQ(url,
-                 "https://api.twitch.tv/helix/streams?user_login=livechan");
+    CHECK_STR_EQ(url, "https://api.twitch.tv/helix/streams?user_login=livechan");
     free(url);
     channel_free(&ch);
 
     /* The predicate absent: offline, and *out is left NULL. */
     CHECK(channel_parse("twitch: offchan", &ch));
-    url = (char *)"sentinel";
+    url = (char*)"sentinel";
     CHECK(probe_is_live(&ch, &url) == PROBE_OFFLINE);
     CHECK(url == NULL);
     channel_free(&ch);
@@ -244,7 +228,7 @@ int main(void)
      * transport failure into "offline" is the §3.1 #4 defect.
      */
     CHECK(channel_parse("twitch: deadchan", &ch));
-    url = (char *)"sentinel";
+    url = (char*)"sentinel";
     CHECK(probe_is_live(&ch, &url) == PROBE_ERROR);
     CHECK(url == NULL);
     channel_free(&ch);
@@ -254,15 +238,14 @@ int main(void)
     url = NULL;
     CHECK(probe_is_live(&ch, &url) == PROBE_LIVE);
     CHECK(g_invalidated == 1);
-    CHECK_STR_EQ(url,
-                 "https://api.twitch.tv/helix/streams?user_login=stalechan");
+    CHECK_STR_EQ(url, "https://api.twitch.tv/helix/streams?user_login=stalechan");
     free(url);
     channel_free(&ch);
 
     /* --- YouTube: the "isLiveNow":true predicate --- */
 
     CHECK(channel_parse("youtube: @livechan", &ch));
-    url = (char *)"sentinel";
+    url = (char*)"sentinel";
     CHECK(probe_is_live(&ch, &url) == PROBE_LIVE);
     CHECK_STR_EQ(url, "https://www.youtube.com/watch?v=LIVEabc123");
     free(url);
@@ -270,21 +253,21 @@ int main(void)
 
     /* /streams entries that are not live: offline. */
     CHECK(channel_parse("youtube: @offchan", &ch));
-    url = (char *)"sentinel";
+    url = (char*)"sentinel";
     CHECK(probe_is_live(&ch, &url) == PROBE_OFFLINE);
     CHECK(url == NULL);
     channel_free(&ch);
 
     /* No /streams entries at all: offline. */
     CHECK(channel_parse("youtube: @emptychan", &ch));
-    url = (char *)"sentinel";
+    url = (char*)"sentinel";
     CHECK(probe_is_live(&ch, &url) == PROBE_OFFLINE);
     CHECK(url == NULL);
     channel_free(&ch);
 
     /* The /streams page itself unreachable: PROBE_ERROR. */
     CHECK(channel_parse("youtube: @deadchan", &ch));
-    url = (char *)"sentinel";
+    url = (char*)"sentinel";
     CHECK(probe_is_live(&ch, &url) == PROBE_ERROR);
     CHECK(url == NULL);
     channel_free(&ch);
@@ -294,8 +277,8 @@ int main(void)
      * hold the same bytes before and after.
      */
     CHECK(channel_parse("youtube: @livechan", &ch));
-    char *slug_before = xstrdup(ch.slug);
-    char *url_before = xstrdup(ch.url);
+    char* slug_before = xstrdup(ch.slug);
+    char* url_before = xstrdup(ch.url);
     url = NULL;
     (void)probe_is_live(&ch, &url);
     CHECK_STR_EQ(ch.slug, slug_before);

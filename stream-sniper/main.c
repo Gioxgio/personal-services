@@ -5,13 +5,6 @@
  * All real behaviour lives in the modules (config / probe / recorder).
  */
 
-#include <errno.h>
-#include <signal.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-
 #include "config.h"
 #include "http.h"
 #include "log.h"
@@ -22,46 +15,50 @@
 #include "twitch_auth.h"
 #include "util.h"
 
+#include <errno.h>
+#include <signal.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+
 static options_t g_opts;
 
 static volatile sig_atomic_t g_running = 1;
 
-static void on_signal(int sig)
-{
+static void on_signal(int sig) {
     (void)sig;
     g_running = 0;
 }
 
-static void usage(const char *prog)
-{
+static void usage(const char* prog) {
     fprintf(stderr,
-        "usage: %s [channels-file] [-i seconds] [-o outdir] [-n] [-v] [-h]\n"
-        "\n"
-        "  channels-file  default: channels.txt\n"
-        "  -i seconds     poll interval, default: 300 (min 30)\n"
-        "  -o dir         recordings root, default: ./recordings\n"
-        "  -n             dry-run: probe and log, never record\n"
-        "  -v             verbose (debug) logging\n"
-        "  -h             this help\n"
-        "\n"
-        "env: TWITCH_CLIENT_ID, TWITCH_CLIENT_SECRET, TWITCH_TOKEN,\n"
-        "     SS_WRAPPER_DIR (where ffmpeg-quiet/ffprobe live),\n"
-        "     SS_NOTIFY_URL (POST recording events to <url>/notifications)\n",
-        prog);
+            "usage: %s [channels-file] [-i seconds] [-o outdir] [-n] [-v] [-h]\n"
+            "\n"
+            "  channels-file  default: channels.txt\n"
+            "  -i seconds     poll interval, default: 300 (min 30)\n"
+            "  -o dir         recordings root, default: ./recordings\n"
+            "  -n             dry-run: probe and log, never record\n"
+            "  -v             verbose (debug) logging\n"
+            "  -h             this help\n"
+            "\n"
+            "env: TWITCH_CLIENT_ID, TWITCH_CLIENT_SECRET, TWITCH_TOKEN,\n"
+            "     SS_WRAPPER_DIR (where ffmpeg-quiet/ffprobe live),\n"
+            "     SS_NOTIFY_URL (POST recording events to <url>/notifications)\n",
+            prog);
 }
 
 /* One sweep: probe every idle channel, start a recorder for the live ones. */
-static void sweep(void)
-{
+static void sweep(void) {
     for (size_t i = 0; i < g_nchannels; i++) {
         if (!g_running)
             break;
 
-        const channel_t *ch = &g_channels[i];
+        const channel_t* ch = &g_channels[i];
         if (recorder_is_busy(ch))
             continue;
 
-        char *url = NULL;
+        char* url = NULL;
 
         /*
          * PROBE_OFFLINE and PROBE_ERROR are the same thing to the caller:
@@ -100,19 +97,18 @@ static void sweep(void)
 }
 
 /* Parse argv into g_opts. Returns 0 on success, -1 after printing a usage error. */
-static int parse_args(int argc, char **argv)
-{
+static int parse_args(int argc, char** argv) {
     snprintf(g_opts.channels_file, sizeof g_opts.channels_file, "channels.txt");
     snprintf(g_opts.out_dir, sizeof g_opts.out_dir, "recordings");
     g_opts.interval_sec = 300;
     g_opts.dry_run = false;
 
     for (int i = 1; i < argc; i++) {
-        const char *arg = argv[i];
+        const char* arg = argv[i];
 
         if (!strcmp(arg, "-h") || !strcmp(arg, "--help")) {
             usage(argv[0]);
-            return 1;                   /* asked for it, so not a failure */
+            return 1; /* asked for it, so not a failure */
         } else if (!strcmp(arg, "-n")) {
             g_opts.dry_run = true;
         } else if (!strcmp(arg, "-v")) {
@@ -123,10 +119,10 @@ static int parse_args(int argc, char **argv)
                 usage(argv[0]);
                 return -1;
             }
-            const char *val = argv[++i];
+            const char* val = argv[++i];
 
             if (!strcmp(arg, "-i")) {
-                char *end;
+                char* end;
                 errno = 0;
                 long secs = strtol(val, &end, 10);
                 if (errno || end == val || *end != '\0' || secs <= 0) {
@@ -157,8 +153,7 @@ static int parse_args(int argc, char **argv)
     return 0;
 }
 
-int main(int argc, char **argv)
-{
+int main(int argc, char** argv) {
     int rc = parse_args(argc, argv);
     if (rc < 0)
         return EXIT_FAILURE;
@@ -166,9 +161,9 @@ int main(int argc, char **argv)
         return 0;
 
     signal(SIGPIPE, SIG_IGN);
-    struct sigaction sa = { 0 };
+    struct sigaction sa = {0};
     sa.sa_handler = on_signal;
-    sigaction(SIGINT,  &sa, NULL);
+    sigaction(SIGINT, &sa, NULL);
     sigaction(SIGTERM, &sa, NULL);
 
     http_global_init();
@@ -191,11 +186,9 @@ int main(int argc, char **argv)
                              "(pipx install yt-dlp)");
     }
 
-    logmsg(LOG_INFO, "watching %zu channel(s) every %lds -> %s%s",
-           g_nchannels, g_opts.interval_sec, g_opts.out_dir,
-           g_opts.dry_run ? " (dry-run)" : "");
-    logmsg(LOG_INFO, "yt-dlp output -> %s/<channel>.log (terminal left quiet)",
-           g_opts.out_dir);
+    logmsg(LOG_INFO, "watching %zu channel(s) every %lds -> %s%s", g_nchannels, g_opts.interval_sec,
+           g_opts.out_dir, g_opts.dry_run ? " (dry-run)" : "");
+    logmsg(LOG_INFO, "yt-dlp output -> %s/<channel>.log (terminal left quiet)", g_opts.out_dir);
 
     /*
      * The interval is a deadline, not a count of sleep(1) calls: a sleep cut

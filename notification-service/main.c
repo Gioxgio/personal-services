@@ -25,12 +25,12 @@ static void shutdown_handler(int sig) {
  * such as " 8080" or "-1" are rejected rather than silently accepted by
  * strtoul(). Trailing garbage ("8080abc") is rejected too.
  */
-static bool parse_port(const char *str, unsigned short *out_port) {
+static bool parse_port(const char* str, unsigned short* out_port) {
     if (str[0] < '0' || str[0] > '9') {
         return false;
     }
 
-    char *end = NULL;
+    char* end = NULL;
     errno = 0;
     unsigned long value = strtoul(str, &end, 10);
 
@@ -52,8 +52,8 @@ static bool parse_port(const char *str, unsigned short *out_port) {
 }
 
 /* Return the value of a required env var, or NULL if unset or empty. */
-static const char *require_env(const char *name) {
-    const char *value = getenv(name);
+static const char* require_env(const char* name) {
+    const char* value = getenv(name);
     if (!value || value[0] == '\0') {
         return NULL;
     }
@@ -61,7 +61,7 @@ static const char *require_env(const char *name) {
 }
 
 /* Append a name to a comma-separated "missing variables" list. */
-static void note_missing(char *list, size_t capacity, const char *name) {
+static void note_missing(char* list, size_t capacity, const char* name) {
     size_t used = strlen(list);
     if (used + strlen(name) + 2 >= capacity) {
         return; /* list is full; the caller still reports what fit */
@@ -69,7 +69,7 @@ static void note_missing(char *list, size_t capacity, const char *name) {
     snprintf(list + used, capacity - used, "%s%s", used ? ", " : "", name);
 }
 
-static void usage(const char *reason) {
+static void usage(const char* reason) {
     if (reason) {
         fprintf(stderr, "error: %s\n\n", reason);
     }
@@ -106,9 +106,9 @@ int main(void) {
         return 1;
     }
 
-    const char *port_str = require_env("PORT");
-    const char *token = require_env("TELEGRAM_TOKEN");
-    const char *chat_id = require_env("TELEGRAM_CHAT_ID");
+    const char* port_str = require_env("PORT");
+    const char* token = require_env("TELEGRAM_TOKEN");
+    const char* chat_id = require_env("TELEGRAM_CHAT_ID");
 
     if (!port_str || !token || !chat_id) {
         char missing[128] = "";
@@ -123,8 +123,7 @@ int main(void) {
         }
 
         char reason[192];
-        snprintf(reason, sizeof(reason),
-                 "missing required environment variable(s): %s", missing);
+        snprintf(reason, sizeof(reason), "missing required environment variable(s): %s", missing);
         usage(reason);
         curl_global_cleanup();
         return 1;
@@ -135,8 +134,7 @@ int main(void) {
 
     if (!parse_port(port_str, &config.port)) {
         char reason[192];
-        snprintf(reason, sizeof(reason),
-                 "invalid PORT \"%s\": expected an integer in 1-65535",
+        snprintf(reason, sizeof(reason), "invalid PORT \"%s\": expected an integer in 1-65535",
                  port_str);
         usage(reason);
         curl_global_cleanup();
@@ -152,8 +150,7 @@ int main(void) {
     curl_global_cleanup();
 
     if (rc != 0) {
-        fprintf(stderr, "%s: server failed to start or stopped with an error\n",
-                PROG_NAME);
+        fprintf(stderr, "%s: server failed to start or stopped with an error\n", PROG_NAME);
     }
     return (rc == 0) ? 0 : 1;
 }

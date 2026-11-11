@@ -5,10 +5,10 @@ services:
       dockerfile: Dockerfile
       target: notification-service
     env_file:
-      - notification-service/.env.template
+      - notification-service/.env
     environment:
       PORT: ${PORT:-8080}
-      DOWNLOAD_SERVICE_URL: ${DOWNLOAD_SERVICE_URL:-http://download-service:8080/download}
+      DOWNLOAD_SERVICE_URL: ${DOWNLOAD_SERVICE_URL:-http://download-service:8081/download}
     ports:
       - "${PORT:-8080}:${PORT:-8080}"
     restart: unless-stopped
@@ -19,7 +19,7 @@ services:
       dockerfile: Dockerfile
       target: download-service
     env_file:
-      - download-service/.env.template
+      - download-service/.env
     environment:
       PORT: ${PORT:-8081}
       CALLBACK_URL: ${CALLBACK_URL:-http://notification-service:8080/callback/download}
@@ -36,7 +36,7 @@ services:
       dockerfile: Dockerfile
       target: stream-sniper
     env_file:
-      - stream-sniper/.env.template
+      - stream-sniper/.env
     environment:
       TWITCH_CLIENT_ID: ${TWITCH_CLIENT_ID:-}
       TWITCH_CLIENT_SECRET: ${TWITCH_CLIENT_SECRET:-}

@@ -21,9 +21,7 @@
  * A NULL or empty `callback_url` is a no-op and returns true: no callback
  * endpoint is configured.
  */
-bool callback_send(const char *callback_url,
-                   const char *job_id, int chat_id,
-                   const char *status,
-                   const char *file_path, const char *error);
+bool callback_send(const char* callback_url, const char* job_id, int chat_id, const char* status,
+                   const char* file_path, const char* error);
 
 #endif

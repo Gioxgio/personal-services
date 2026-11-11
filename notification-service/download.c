@@ -3,6 +3,7 @@
 #endif
 
 #include "download.h"
+
 #include "json.h"
 
 #include <curl/curl.h>
@@ -16,20 +17,17 @@
 
 /* Response body capture (same pattern as telegram.c). */
 typedef struct {
-    char *buffer;
+    char* buffer;
     size_t capacity;
     size_t written;
 } response_buf_t;
 
-static size_t write_callback(void *contents, size_t size, size_t nmemb,
-                             void *userp) {
-    response_buf_t *buf = (response_buf_t *)userp;
+static size_t write_callback(void* contents, size_t size, size_t nmemb, void* userp) {
+    response_buf_t* buf = (response_buf_t*)userp;
     size_t total = size * nmemb;
 
     if (buf->buffer && buf->capacity > 0) {
-        size_t remaining = (buf->written < buf->capacity)
-                               ? (buf->capacity - 1 - buf->written)
-                               : 0;
+        size_t remaining = (buf->written < buf->capacity) ? (buf->capacity - 1 - buf->written) : 0;
         size_t to_copy = (total < remaining) ? total : remaining;
         memcpy(buf->buffer + buf->written, contents, to_copy);
         buf->written += to_copy;
@@ -40,12 +38,11 @@ static size_t write_callback(void *contents, size_t size, size_t nmemb,
     return total;
 }
 
-int download_submit(int64_t chat_id, const char *url,
-                    char *job_id_out, size_t job_id_cap) {
+int download_submit(int64_t chat_id, const char* url, char* job_id_out, size_t job_id_cap) {
     if (!url || !job_id_out || job_id_cap == 0)
         return -1;
 
-    const char *service_url = getenv("DOWNLOAD_SERVICE_URL");
+    const char* service_url = getenv("DOWNLOAD_SERVICE_URL");
     if (!service_url || service_url[0] == '\0')
         service_url = DEFAULT_DOWNLOAD_SERVICE_URL;
 
@@ -54,8 +51,7 @@ int download_submit(int64_t chat_id, const char *url,
         return -1;
 
     char body[DOWNLOAD_SUBMIT_BODY_MAX];
-    int n = snprintf(body, sizeof(body),
-                     "{\"url\": \"%s\", \"chat_id\": %lld}", e_url,
+    int n = snprintf(body, sizeof(body), "{\"url\": \"%s\", \"chat_id\": %lld}", e_url,
                      (long long)chat_id);
     if (n < 0 || (size_t)n >= sizeof(body))
         return -1;
@@ -64,11 +60,11 @@ int download_submit(int64_t chat_id, const char *url,
     resp_storage[0] = '\0';
     response_buf_t resp = {resp_storage, sizeof(resp_storage), 0};
 
-    CURL *curl = curl_easy_init();
+    CURL* curl = curl_easy_init();
     if (!curl)
         return -1;
 
-    struct curl_slist *headers = NULL;
+    struct curl_slist* headers = NULL;
     headers = curl_slist_append(headers, "Content-Type: application/json");
 
     long http_code = 0;
@@ -87,19 +83,16 @@ int download_submit(int64_t chat_id, const char *url,
         curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
 
         if (http_code == 200) {
-            if (json_find_top_level_string(resp_storage, "job_id",
-                                           job_id_out, job_id_cap)) {
+            if (json_find_top_level_string(resp_storage, "job_id", job_id_out, job_id_cap)) {
                 rc = 0;
             } else {
                 rc = -1;
-                fprintf(stderr,
-                        "download-service: accepted download but no job_id in "
-                        "response\n");
+                fprintf(stderr, "download-service: accepted download but no job_id in "
+                                "response\n");
             }
         } else if (http_code == 400) {
             char error[128];
-            if (json_find_top_level_string(resp_storage, "error", error,
-                                           sizeof(error)) &&
+            if (json_find_top_level_string(resp_storage, "error", error, sizeof(error)) &&
                 strcmp(error, "unsupported_domain") == 0) {
                 rc = 1;
             } else {
@@ -109,8 +102,7 @@ int download_submit(int64_t chat_id, const char *url,
             rc = -1;
         }
     } else {
-        fprintf(stderr,
-                "download-service: POST %s failed: %s\n", service_url,
+        fprintf(stderr, "download-service: POST %s failed: %s\n", service_url,
                 curl_easy_strerror(cres));
     }
 

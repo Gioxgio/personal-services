@@ -11,15 +11,15 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
-#include <stddef.h>
-
 #include "urlparse.h"
 
-extern channel_t *g_channels;
-extern size_t     g_nchannels;
+#include <stddef.h>
+
+extern channel_t* g_channels;
+extern size_t g_nchannels;
 
 /* Parse the file at path into g_channels. Returns 0 on success, -1 on error. */
-int config_load(const char *path);
+int config_load(const char* path);
 
 /* Free every channel and its strings. Safe to call once at shutdown. */
 void config_free(void);

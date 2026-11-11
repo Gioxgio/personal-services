@@ -31,7 +31,7 @@
 static int passed = 0;
 static int failed = 0;
 
-static void check(bool condition, const char *name) {
+static void check(bool condition, const char* name) {
     if (condition) {
         printf("PASS: %s\n", name);
         passed++;
@@ -57,8 +57,8 @@ static size_t stub_request_len = 0;
 static char stub_body[8192];
 static size_t stub_body_len = 0;
 
-static void *stub_server(void *arg) {
-    int port = *(int *)arg;
+static void* stub_server(void* arg) {
+    int port = *(int*)arg;
     (void)arg;
 
     int server_fd = socket(AF_INET, SOCK_STREAM, 0);
@@ -75,8 +75,7 @@ static void *stub_server(void *arg) {
     addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
     addr.sin_port = htons((unsigned short)port);
 
-    if (bind(server_fd, (struct sockaddr *)&addr, sizeof(addr)) < 0 ||
-        listen(server_fd, 4) < 0) {
+    if (bind(server_fd, (struct sockaddr*)&addr, sizeof(addr)) < 0 || listen(server_fd, 4) < 0) {
         perror("stub: bind/listen");
         close(server_fd);
         return NULL;
@@ -91,13 +90,11 @@ static void *stub_server(void *arg) {
     if (fd >= 0) {
         size_t total = 0;
         while (total + 1 < sizeof(stub_request)) {
-            ssize_t n = recv(fd, stub_request + total,
-                             sizeof(stub_request) - 1 - total, 0);
+            ssize_t n = recv(fd, stub_request + total, sizeof(stub_request) - 1 - total, 0);
             if (n <= 0)
                 break;
             total += (size_t)n;
-            if (total >= 4 &&
-                stub_request[total - 4] == '\r' && stub_request[total - 3] == '\n' &&
+            if (total >= 4 && stub_request[total - 4] == '\r' && stub_request[total - 3] == '\n' &&
                 stub_request[total - 2] == '\r' && stub_request[total - 1] == '\n')
                 break;
         }
@@ -106,7 +103,7 @@ static void *stub_server(void *arg) {
 
         /* Content-Length body, if any. */
         long cl = -1;
-        const char *p = stub_request;
+        const char* p = stub_request;
         while (*p) {
             if (strncasecmp(p, "Content-Length:", 15) == 0) {
                 p += 15;
@@ -120,7 +117,7 @@ static void *stub_server(void *arg) {
                 cl = v;
                 break;
             }
-            const char *eol = strstr(p, "\r\n");
+            const char* eol = strstr(p, "\r\n");
             if (!eol)
                 break;
             p = eol + 2;
@@ -130,7 +127,7 @@ static void *stub_server(void *arg) {
 
         stub_body_len = 0;
         if (cl > 0) {
-            const char *body_start = strstr(stub_request, "\r\n\r\n");
+            const char* body_start = strstr(stub_request, "\r\n\r\n");
             if (body_start) {
                 body_start += 4;
                 size_t have = (size_t)(stub_request + total - body_start);
@@ -164,8 +161,7 @@ static void *stub_server(void *arg) {
         if (rlen > 0) {
             size_t sent = 0;
             while (sent < (size_t)rlen) {
-                ssize_t n = send(fd, resp + sent, (size_t)rlen - sent,
-                                 MSG_NOSIGNAL);
+                ssize_t n = send(fd, resp + sent, (size_t)rlen - sent, MSG_NOSIGNAL);
                 if (n <= 0)
                     break;
                 sent += (size_t)n;
@@ -222,27 +218,23 @@ static void test_no_callback_configured(void) {
           "empty callback URL is a no-op success");
 
     /* https has no TLS support in this service: rejected without connecting. */
-    check(callback_send("https://127.0.0.1:18942/x", "job-1", 1,
-                        "completed", NULL, NULL) == false,
+    check(callback_send("https://127.0.0.1:18942/x", "job-1", 1, "completed", NULL, NULL) == false,
           "https URL is rejected");
 
     /* Out-of-range port: rejected at parse time. */
-    check(callback_send("http://127.0.0.1:99999/x", "job-1", 1,
-                        "completed", NULL, NULL) == false,
+    check(callback_send("http://127.0.0.1:99999/x", "job-1", 1, "completed", NULL, NULL) == false,
           "out-of-range port is rejected");
 
     /* Connection refused: reported as failure, quickly (localhost). */
-    check(callback_send("http://127.0.0.1:1/x", "job-1", 1,
-                        "completed", NULL, NULL) == false,
+    check(callback_send("http://127.0.0.1:1/x", "job-1", 1, "completed", NULL, NULL) == false,
           "connection refused is a failure");
 }
 
 static void test_completed_job(void) {
     stub_start(STUB_PORT_200, 200);
 
-    bool ok = callback_send("http://127.0.0.1:18942/callback/download",
-                            "test-job-123", 42, "completed",
-                            "/data/downloads/abc/x.mp4", NULL);
+    bool ok = callback_send("http://127.0.0.1:18942/callback/download", "test-job-123", 42,
+                            "completed", "/data/downloads/abc/x.mp4", NULL);
     check(ok, "completed job: callback_send returns true");
     check(stub_wait_done(), "completed job: stub received the request");
 
@@ -250,19 +242,15 @@ static void test_completed_job(void) {
           "completed job: request line");
     check(strstr(stub_request, "Content-Type: application/json") != NULL,
           "completed job: JSON content type");
-    check(strstr(stub_request, "Content-Length:") != NULL,
-          "completed job: content length");
+    check(strstr(stub_request, "Content-Length:") != NULL, "completed job: content length");
 
     check(strstr(stub_body, "\"job_id\": \"test-job-123\"") != NULL,
           "completed job: body has job_id");
-    check(strstr(stub_body, "\"chat_id\": 42") != NULL,
-          "completed job: body has chat_id");
-    check(strstr(stub_body, "\"status\": \"completed\"") != NULL,
-          "completed job: body has status");
+    check(strstr(stub_body, "\"chat_id\": 42") != NULL, "completed job: body has chat_id");
+    check(strstr(stub_body, "\"status\": \"completed\"") != NULL, "completed job: body has status");
     check(strstr(stub_body, "\"file_path\": \"/data/downloads/abc/x.mp4\"") != NULL,
           "completed job: body has file_path");
-    check(strstr(stub_body, "\"error\"") == NULL,
-          "completed job: body has no error field");
+    check(strstr(stub_body, "\"error\"") == NULL, "completed job: body has no error field");
 
     pthread_join(stub_thread, NULL);
 }
@@ -270,19 +258,16 @@ static void test_completed_job(void) {
 static void test_failed_job(void) {
     stub_start(STUB_PORT_500, 200);
 
-    bool ok = callback_send("http://127.0.0.1:18943/callback/download",
-                            "test-job-456", 7, "failed", NULL,
-                            "download failed for https://youtu.be/x");
+    bool ok = callback_send("http://127.0.0.1:18943/callback/download", "test-job-456", 7, "failed",
+                            NULL, "download failed for https://youtu.be/x");
     check(ok, "failed job: callback_send returns true");
     check(stub_wait_done(), "failed job: stub received the request");
 
     check(strstr(stub_body, "\"status\": \"failed\"") != NULL,
           "failed job: body has status failed");
-    check(strstr(stub_body,
-                 "\"error\": \"download failed for https://youtu.be/x\"") != NULL,
+    check(strstr(stub_body, "\"error\": \"download failed for https://youtu.be/x\"") != NULL,
           "failed job: body has error message");
-    check(strstr(stub_body, "\"file_path\"") == NULL,
-          "failed job: body has no file_path field");
+    check(strstr(stub_body, "\"file_path\"") == NULL, "failed job: body has no file_path field");
 
     pthread_join(stub_thread, NULL);
 }
@@ -290,9 +275,8 @@ static void test_failed_job(void) {
 static void test_non_2xx(void) {
     stub_start(STUB_PORT_FAILED, 500);
 
-    bool ok = callback_send("http://127.0.0.1:18944/callback/download",
-                            "test-job-789", 9, "completed", "/tmp/f.mp4",
-                            NULL);
+    bool ok = callback_send("http://127.0.0.1:18944/callback/download", "test-job-789", 9,
+                            "completed", "/tmp/f.mp4", NULL);
     check(ok == false, "non-2xx response is a failure");
     check(stub_wait_done(), "non-2xx: stub received the request");
     check(strstr(stub_request, "POST /callback/download HTTP/1.1") != NULL,

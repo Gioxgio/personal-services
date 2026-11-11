@@ -23,8 +23,7 @@
  * sees 0 for both a missing key and an empty value - the only
  * outcomes in which there is nothing to use.
  */
-size_t json_find_string(const char *json, const char *key,
-                        char *out, size_t outsz);
+size_t json_find_string(const char* json, const char* key, char* out, size_t outsz);
 
 /*
  * Scan json for every "key":"value" in document order and collect
@@ -34,7 +33,6 @@ size_t json_find_string(const char *json, const char *key,
  * Returns the number of values collected; rows past that count
  * are untouched and must not be read.
  */
-size_t json_collect_strings(const char *json, const char *key,
-                            char out[][32], size_t max);
+size_t json_collect_strings(const char* json, const char* key, char out[][32], size_t max);
 
 #endif /* JSONLITE_H */

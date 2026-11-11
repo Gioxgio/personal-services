@@ -19,7 +19,6 @@
  * All socket operations are bounded by fixed timeouts; the function blocks
  * until the request completes or times out.
  */
-int download_submit(int64_t chat_id, const char *url,
-                    char *job_id_out, size_t job_id_cap);
+int download_submit(int64_t chat_id, const char* url, char* job_id_out, size_t job_id_cap);
 
 #endif

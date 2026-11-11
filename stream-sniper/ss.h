@@ -19,10 +19,10 @@
 
 /* Command line / environment, resolved once in main(). */
 typedef struct {
-    long        interval_sec;               /* poll period, default 300      */
-    char        out_dir[PATH_MAX];           /* recordings root              */
-    char        channels_file[PATH_MAX];     /* config path                  */
-    bool        dry_run;                     /* -n: probe only, never record */
+    long interval_sec;            /* poll period, default 300      */
+    char out_dir[PATH_MAX];       /* recordings root              */
+    char channels_file[PATH_MAX]; /* config path                  */
+    bool dry_run;                 /* -n: probe only, never record */
 } options_t;
 
 /*

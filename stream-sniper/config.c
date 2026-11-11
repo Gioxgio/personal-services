@@ -1,19 +1,18 @@
 #include "config.h"
 
+#include "log.h"
+#include "util.h"
+
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#include "log.h"
-#include "util.h"
+channel_t* g_channels;
+size_t g_nchannels;
 
-channel_t *g_channels;
-size_t     g_nchannels;
-
-int config_load(const char *path)
-{
-    FILE *f = fopen(path, "r");
+int config_load(const char* path) {
+    FILE* f = fopen(path, "r");
     if (!f) {
         logmsg(LOG_ERROR, "cannot open %s: %s", path, strerror(errno));
         return -1;
@@ -27,12 +26,13 @@ int config_load(const char *path)
     int lineno = 0;
     while (fgets(line, sizeof line, f)) {
         lineno++;
-        char *s = line;
-        while (*s == ' ' || *s == '\t') s++;
+        char* s = line;
+        while (*s == ' ' || *s == '\t')
+            s++;
         if (*s == '#' || *s == '\n' || *s == '\r' || *s == '\0')
             continue;
 
-        char *copy = xstrdup(s);
+        char* copy = xstrdup(s);
         trim(copy);
 
         channel_t ch;
@@ -45,7 +45,7 @@ int config_load(const char *path)
 
         if (g_nchannels == cap) {
             cap *= 2;
-            channel_t *tmp = realloc(g_channels, cap * sizeof *g_channels);
+            channel_t* tmp = realloc(g_channels, cap * sizeof *g_channels);
             if (!tmp) {
                 logmsg(LOG_ERROR, "out of memory");
                 exit(EXIT_FAILURE);
@@ -60,8 +60,7 @@ int config_load(const char *path)
     return 0;
 }
 
-void config_free(void)
-{
+void config_free(void) {
     for (size_t i = 0; i < g_nchannels; i++)
         channel_free(&g_channels[i]);
     free(g_channels);

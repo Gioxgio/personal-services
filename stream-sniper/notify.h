@@ -11,9 +11,9 @@
 #ifndef NOTIFY_H
 #define NOTIFY_H
 
-#include <stdbool.h>
-
 #include "urlparse.h"
+
+#include <stdbool.h>
 
 /*
  * Resolve SS_NOTIFY_URL once, from main() after http_global_init().
@@ -27,7 +27,7 @@
 void notify_init(void);
 
 /* "stream-sniper: started recording <slug>" */
-void notify_recording_started(const channel_t *ch);
+void notify_recording_started(const channel_t* ch);
 
 /*
  * "stream-sniper: stopped recording <slug> after <dur> (completed|failed)"
@@ -36,8 +36,7 @@ void notify_recording_started(const channel_t *ch);
  * for every other outcome - a non-zero exit or a signal, which is
  * the same WIFEXITED/WEXITSTATUS check that picks DONE vs FAIL/STOP.
  */
-void notify_recording_stopped(const channel_t *ch, bool clean,
-                              const char *dur);
+void notify_recording_stopped(const channel_t* ch, bool clean, const char* dur);
 
 /*
  * JSON-escape src into a freshly allocated, quoted JSON string
@@ -46,6 +45,6 @@ void notify_recording_stopped(const channel_t *ch, bool clean,
  * declared here only so the tests can exercise the escaper on its
  * own.
  */
-char *notify_json_quote(const char *src);
+char* notify_json_quote(const char* src);
 
 #endif /* NOTIFY_H */

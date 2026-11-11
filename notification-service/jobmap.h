@@ -16,11 +16,11 @@
  * chat that originated each accepted download job so that the result can be
  * delivered back to the right chat when the download-service calls back.
  */
-void jobmap_put(const char *job_id, int64_t chat_id);
+void jobmap_put(const char* job_id, int64_t chat_id);
 
 /* Returns the chat id for `job_id`, or 0 when no such job is tracked. */
-int64_t jobmap_get(const char *job_id);
+int64_t jobmap_get(const char* job_id);
 
-void jobmap_remove(const char *job_id);
+void jobmap_remove(const char* job_id);
 
 #endif

@@ -8,21 +8,18 @@
 // Response buffer
 
 typedef struct {
-    char *buffer;
+    char* buffer;
     size_t capacity;
     size_t written;
 } http_response_buf_t;
 
-static size_t write_callback(void *contents, size_t size, size_t nmemb,
-                             void *userp) {
-    http_response_buf_t *buf = (http_response_buf_t *)userp;
+static size_t write_callback(void* contents, size_t size, size_t nmemb, void* userp) {
+    http_response_buf_t* buf = (http_response_buf_t*)userp;
     size_t total = size * nmemb;
 
     if (buf->buffer && buf->capacity > 0) {
         // Reserve 1 byte for null-termination
-        size_t remaining = (buf->written < buf->capacity)
-                               ? (buf->capacity - 1 - buf->written)
-                               : 0;
+        size_t remaining = (buf->written < buf->capacity) ? (buf->capacity - 1 - buf->written) : 0;
         size_t to_copy = (total < remaining) ? total : remaining;
         memcpy(buf->buffer + buf->written, contents, to_copy);
         buf->written += to_copy;
@@ -35,22 +32,20 @@ static size_t write_callback(void *contents, size_t size, size_t nmemb,
 
 // Public API
 
-int telegram_send_message_to(const char *token, const char *chat_id,
-                             const char *text,
-                             char *response_out, size_t response_capacity) {
-    CURL *curl;
+int telegram_send_message_to(const char* token, const char* chat_id, const char* text,
+                             char* response_out, size_t response_capacity) {
+    CURL* curl;
     CURLcode res;
     long http_code = 0;
 
     /* Build URL: https://api.telegram.org/bot<token>/sendMessage */
     /* Allow override via TELEGRAM_API_URL for testing with a mock server */
     char url[512];
-    const char *api_base = getenv("TELEGRAM_API_URL");
+    const char* api_base = getenv("TELEGRAM_API_URL");
     if (api_base && api_base[0]) {
         snprintf(url, sizeof(url), "%s/bot%s/sendMessage", api_base, token);
     } else {
-        snprintf(url, sizeof(url), "https://api.telegram.org/bot%s/sendMessage",
-                 token);
+        snprintf(url, sizeof(url), "https://api.telegram.org/bot%s/sendMessage", token);
     }
 
     /* Build JSON body with escaped message */
@@ -60,8 +55,8 @@ int telegram_send_message_to(const char *token, const char *chat_id,
     }
 
     char json_body[MAX_TELEGRAM_MSG_LEN * 2 + 256];
-    snprintf(json_body, sizeof(json_body),
-             "{\"chat_id\": \"%s\", \"text\": \"%s\"}", chat_id, escaped_msg);
+    snprintf(json_body, sizeof(json_body), "{\"chat_id\": \"%s\", \"text\": \"%s\"}", chat_id,
+             escaped_msg);
 
     /* Set up response buffer */
     http_response_buf_t resp_buf = {response_out, response_capacity, 0};
@@ -70,7 +65,7 @@ int telegram_send_message_to(const char *token, const char *chat_id,
     }
 
     /* Build headers */
-    struct curl_slist *headers = NULL;
+    struct curl_slist* headers = NULL;
     headers = curl_slist_append(headers, "Content-Type: application/json");
 
     curl = curl_easy_init();
@@ -103,22 +98,19 @@ int telegram_send_message_to(const char *token, const char *chat_id,
     return (int)http_code;
 }
 
-int telegram_send_message(const telegram_config_t *config,
-                          const notification_payload_t *payload,
-                          char *response_out, size_t response_capacity) {
+int telegram_send_message(const telegram_config_t* config, const notification_payload_t* payload,
+                          char* response_out, size_t response_capacity) {
     /* Message format: "[source] message" when a source is set. */
     char formatted[MAX_TELEGRAM_MSG_LEN + 1];
     int n;
     if (payload->source[0] != '\0') {
-        n = snprintf(formatted, sizeof(formatted), "[%s] %s",
-                     payload->source, payload->message);
+        n = snprintf(formatted, sizeof(formatted), "[%s] %s", payload->source, payload->message);
     } else {
         n = snprintf(formatted, sizeof(formatted), "%s", payload->message);
     }
     if (n < 0 || (size_t)n >= sizeof(formatted)) {
         n = snprintf(formatted, sizeof(formatted), "%s", payload->message);
     }
-    return telegram_send_message_to(config->token, config->chat_id,
-                                    formatted, response_out,
+    return telegram_send_message_to(config->token, config->chat_id, formatted, response_out,
                                     response_capacity);
 }

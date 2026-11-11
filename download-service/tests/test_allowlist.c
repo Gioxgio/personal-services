@@ -6,7 +6,7 @@
 static int passed = 0;
 static int failed = 0;
 
-static void check(bool condition, const char *name) {
+static void check(bool condition, const char* name) {
     if (condition) {
         printf("PASS: %s\n", name);
         passed++;
@@ -17,39 +17,28 @@ static void check(bool condition, const char *name) {
 }
 
 /* YouTube allowlist from the plan's download.allowed_domains. */
-static char *domains[] = {"youtube.com",   "www.youtube.com", "m.youtube.com",
-                          "youtu.be",      "www.youtu.be"};
+static char* domains[] = {"youtube.com", "www.youtube.com", "m.youtube.com", "youtu.be",
+                          "www.youtu.be"};
 static allowlist_t list = {domains, sizeof(domains) / sizeof(domains[0])};
 
 static void test_supported_hosts(void) {
     check(is_supported("https://www.youtube.com/watch?v=dQw4w9WgXcQ", &list),
           "www.youtube.com path is supported");
-    check(is_supported("https://youtube.com/watch?v=x", &list),
-          "youtube.com path is supported");
-    check(is_supported("https://m.youtube.com/watch?v=x", &list),
-          "m.youtube.com is supported");
-    check(is_supported("https://youtu.be/dQw4w9WgXcQ", &list),
-          "youtu.be is supported");
-    check(is_supported("https://www.youtu.be/dQw4w9WgXcQ", &list),
-          "www.youtu.be is supported");
-    check(is_supported("http://WWW.YOUTUBE.COM/watch", &list),
-          "uppercase host is supported");
-    check(is_supported("https://www.youtube.com:8080/watch", &list),
-          "host with port is supported");
-    check(is_supported("https://www.youtube.com?x=1", &list),
-          "host with query is supported");
-    check(is_supported("https://www.youtube.com#frag", &list),
-          "host with fragment is supported");
-    check(is_supported("www.youtube.com/watch", &list),
-          "host without scheme is supported");
+    check(is_supported("https://youtube.com/watch?v=x", &list), "youtube.com path is supported");
+    check(is_supported("https://m.youtube.com/watch?v=x", &list), "m.youtube.com is supported");
+    check(is_supported("https://youtu.be/dQw4w9WgXcQ", &list), "youtu.be is supported");
+    check(is_supported("https://www.youtu.be/dQw4w9WgXcQ", &list), "www.youtu.be is supported");
+    check(is_supported("http://WWW.YOUTUBE.COM/watch", &list), "uppercase host is supported");
+    check(is_supported("https://www.youtube.com:8080/watch", &list), "host with port is supported");
+    check(is_supported("https://www.youtube.com?x=1", &list), "host with query is supported");
+    check(is_supported("https://www.youtube.com#frag", &list), "host with fragment is supported");
+    check(is_supported("www.youtube.com/watch", &list), "host without scheme is supported");
 }
 
 static void test_unsupported_hosts(void) {
-    check(!is_supported("https://vimeo.com/12345678", &list),
-          "vimeo.com is unsupported");
+    check(!is_supported("https://vimeo.com/12345678", &list), "vimeo.com is unsupported");
     check(!is_supported("https://example.com", &list), "example.com is unsupported");
-    check(!is_supported("https://evilyoutube.com/", &list),
-          "evilyoutube.com is unsupported");
+    check(!is_supported("https://evilyoutube.com/", &list), "evilyoutube.com is unsupported");
     check(!is_supported("https://youtube.com.evil.com/", &list),
           "youtube.com.evil.com is unsupported");
     check(!is_supported("https://evil.youtube.com.evil.com/", &list),
@@ -99,8 +88,7 @@ static void test_allowlist_parse(void) {
     ok = allowlist_parse("youtu.be, youtube.com", &parsed);
     check(ok, "parse: youtu.be listed");
     check(is_supported("https://youtu.be/x", &parsed), "parse: supports listed host");
-    check(!is_supported("https://vimeo.com/", &parsed),
-          "parse: rejects unlisted host");
+    check(!is_supported("https://vimeo.com/", &parsed), "parse: rejects unlisted host");
     allowlist_free(&parsed);
 
     /* Freeing an already-freed / empty list is safe. */

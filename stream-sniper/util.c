@@ -1,5 +1,7 @@
 #include "util.h"
 
+#include "log.h"
+
 #include <ctype.h>
 #include <errno.h>
 #include <limits.h>
@@ -12,11 +14,8 @@
 #include <time.h>
 #include <unistd.h>
 
-#include "log.h"
-
-void *xmalloc(size_t n)
-{
-    void *p = malloc(n);
+void* xmalloc(size_t n) {
+    void* p = malloc(n);
     if (!p) {
         logmsg(LOG_ERROR, "out of memory (%zu bytes)", n);
         exit(EXIT_FAILURE);
@@ -24,9 +23,8 @@ void *xmalloc(size_t n)
     return p;
 }
 
-char *xstrdup(const char *s)
-{
-    char *p = strdup(s);
+char* xstrdup(const char* s) {
+    char* p = strdup(s);
     if (!p) {
         logmsg(LOG_ERROR, "out of memory");
         exit(EXIT_FAILURE);
@@ -34,39 +32,34 @@ char *xstrdup(const char *s)
     return p;
 }
 
-char *lower_dup(const char *s)
-{
-    char *p = xstrdup(s);
-    for (char *q = p; *q; q++)
+char* lower_dup(const char* s) {
+    char* p = xstrdup(s);
+    for (char* q = p; *q; q++)
         *q = (char)tolower((unsigned char)*q);
     return p;
 }
 
-void trim(char *s)
-{
+void trim(char* s) {
     size_t n = strlen(s);
-    while (n && (s[n - 1] == '\n' || s[n - 1] == '\r' ||
-                 s[n - 1] == ' '  || s[n - 1] == '\t'))
+    while (n && (s[n - 1] == '\n' || s[n - 1] == '\r' || s[n - 1] == ' ' || s[n - 1] == '\t'))
         s[--n] = '\0';
 }
 
-void strip_spaces(char *s)
-{
+void strip_spaces(char* s) {
     /* Single pass: the naive memmove-per-space version is O(n^2). */
-    char *w = s;
-    for (const char *r = s; *r; r++)
+    char* w = s;
+    for (const char* r = s; *r; r++)
         if (*r != ' ' && *r != '\t')
             *w++ = *r;
     *w = '\0';
 }
 
-char *sanitise(const char *s)
-{
+char* sanitise(const char* s) {
     /* +2, not +1: the '_' fallback below can add a character the
      * source string did not have, and its NUL must still fit. */
-    char *out = xmalloc(strlen(s) + 2);
+    char* out = xmalloc(strlen(s) + 2);
     size_t j = 0;
-    for (const char *p = s; *p; p++) {
+    for (const char* p = s; *p; p++) {
         unsigned char c = (unsigned char)*p;
         out[j++] = (isalnum(c) || c == '-' || c == '_') ? (char)c : '_';
     }
@@ -76,35 +69,33 @@ char *sanitise(const char *s)
     return out;
 }
 
-char *last_path_segment(char *url)
-{
+char* last_path_segment(char* url) {
     /*
      * A query string or a fragment belongs to the URL, not to its last path
      * segment: twitch.tv/foo?lang=en must yield "foo", not "foo?lang=en".
      * Cut here rather than at the end, so the returned pointer is NUL
      * terminated for the caller.
      */
-    char *cut = strpbrk(url, "?#");
+    char* cut = strpbrk(url, "?#");
     if (cut)
         *cut = '\0';
-    char *end = url + strlen(url);
+    char* end = url + strlen(url);
     while (end > url && end[-1] == '/')
         end--;
-    *end = '\0';                     /* a trailing slash is not the segment */
+    *end = '\0'; /* a trailing slash is not the segment */
 
-    char *start = end;
+    char* start = end;
     while (start > url && start[-1] != '/')
         start--;
     return (start >= end) ? NULL : start;
 }
 
-bool mkdir_p(const char *dir)
-{
+bool mkdir_p(const char* dir) {
     char tmp[PATH_MAX];
     if (snprintf(tmp, sizeof tmp, "%s", dir) >= (int)sizeof tmp)
         return false;
 
-    for (char *p = tmp + 1; *p; p++) {
+    for (char* p = tmp + 1; *p; p++) {
         if (*p != '/')
             continue;
         *p = '\0';
@@ -118,8 +109,7 @@ bool mkdir_p(const char *dir)
 /* Longest single nap: bounds how long *stop goes unnoticed. */
 #define SLEEP_CHUNK_NS 500000000L
 
-void interruptible_sleep(long seconds, const volatile sig_atomic_t *stop)
-{
+void interruptible_sleep(long seconds, const volatile sig_atomic_t* stop) {
     if (seconds <= 0 || !*stop)
         return;
 
@@ -137,18 +127,18 @@ void interruptible_sleep(long seconds, const volatile sig_atomic_t *stop)
          * recomputed each round, so a nap cut short by a signal does not cost
          * the caller the remainder of the interval. */
         struct timespec remain;
-        remain.tv_sec  =  deadline.tv_sec  - now.tv_sec;
-        remain.tv_nsec =  deadline.tv_nsec - now.tv_nsec;
+        remain.tv_sec = deadline.tv_sec - now.tv_sec;
+        remain.tv_nsec = deadline.tv_nsec - now.tv_nsec;
         if (remain.tv_nsec < 0) {
             remain.tv_nsec += 1000000000L;
             remain.tv_sec--;
         }
         if (remain.tv_sec < 0)
-            return;                     /* deadline passed */
+            return; /* deadline passed */
 
         struct timespec nap = remain;
         if (remain.tv_sec > 0 || remain.tv_nsec > SLEEP_CHUNK_NS)
-            nap = (struct timespec){ .tv_sec = 0, .tv_nsec = SLEEP_CHUNK_NS };
+            nap = (struct timespec){.tv_sec = 0, .tv_nsec = SLEEP_CHUNK_NS};
 
         /* nanosleep() writes the unslept remainder back into nap on EINTR. */
         while (nanosleep(&nap, &nap) != 0 && errno == EINTR && *stop)
@@ -156,8 +146,7 @@ void interruptible_sleep(long seconds, const volatile sig_atomic_t *stop)
     }
 }
 
-void human_duration(char *buf, size_t bufsz, long secs)
-{
+void human_duration(char* buf, size_t bufsz, long secs) {
     if (secs < 0)
         secs = 0;
 

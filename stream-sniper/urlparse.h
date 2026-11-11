@@ -19,10 +19,7 @@
 #include <stddef.h>
 
 /* Which platform a channel lives on. */
-typedef enum {
-    SRC_TWITCH,
-    SRC_YOUTUBE
-} source_t;
+typedef enum { SRC_TWITCH, SRC_YOUTUBE } source_t;
 
 /*
  * One configured channel.
@@ -36,13 +33,13 @@ typedef enum {
  * recorder.c's private rec_slot_t[], not here.
  */
 typedef struct {
-    char    *slug;           /* sanitised name, used as output subdirectory */
-    char    *url;            /* canonical channel URL: probed this          */
+    char* slug; /* sanitised name, used as output subdirectory */
+    char* url;  /* canonical channel URL: probed this          */
     source_t src;
 } channel_t;
 
 /* Put the channel in the empty state: owns nothing, all fields zero. */
-void channel_init(channel_t *ch);
+void channel_init(channel_t* ch);
 
 /*
  * Turn one config line into a fully populated channel_t.
@@ -57,13 +54,13 @@ void channel_init(channel_t *ch);
  * case *out is left in the channel_init() state and owns
  * nothing - a rejected line leaks nothing.
  */
-bool channel_parse(const char *line, channel_t *out);
+bool channel_parse(const char* line, channel_t* out);
 
 /*
  * Release what the channel owns and return it to the
  * channel_init() state, so a freed channel is safe to
  * re-parse, drop, or free again.
  */
-void channel_free(channel_t *ch);
+void channel_free(channel_t* ch);
 
 #endif /* URLPARSE_H */

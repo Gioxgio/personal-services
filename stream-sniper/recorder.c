@@ -1,5 +1,10 @@
 #include "recorder.h"
 
+#include "log.h"
+#include "notify.h"
+#include "ss.h"
+#include "util.h"
+
 #include <errno.h>
 #include <fcntl.h>
 #include <limits.h>
@@ -13,11 +18,6 @@
 #include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
-
-#include "log.h"
-#include "notify.h"
-#include "ss.h"
-#include "util.h"
 
 static pthread_mutex_t g_state_mtx = PTHREAD_MUTEX_INITIALIZER;
 
@@ -33,20 +33,20 @@ static pthread_mutex_t g_state_mtx = PTHREAD_MUTEX_INITIALIZER;
  * "probe creates -> recorder frees" chain in one place.
  */
 typedef struct {
-    pid_t       pid;         /* yt-dlp child process, 0 when idle     */
-    pthread_t   thread;
-    atomic_bool recording;   /* a recorder thread is attached         */
-    bool        has_thread;  /* `thread` above is joinable            */
-    bool        asked_stop;  /* shutdown signalled this child         */
-    bool        tried_live;  /* already attempted this live event     */
-    char       *stream_url;  /* target of the recording, owned while
-                                 `recording` is set                    */
+    pid_t pid; /* yt-dlp child process, 0 when idle     */
+    pthread_t thread;
+    atomic_bool recording; /* a recorder thread is attached         */
+    bool has_thread;       /* `thread` above is joinable            */
+    bool asked_stop;       /* shutdown signalled this child         */
+    bool tried_live;       /* already attempted this live event     */
+    char* stream_url;      /* target of the recording, owned while
+                               `recording` is set                    */
 } rec_slot_t;
 
-static rec_slot_t      *g_slots;    /* n slots, from recorder_init()  */
-static size_t           g_nslots;
-static const channel_t *g_chans;    /* read-only, owned by config.c   */
-static const char      *g_out_dir;  /* read-only, owned by main.c     */
+static rec_slot_t* g_slots; /* n slots, from recorder_init()  */
+static size_t g_nslots;
+static const channel_t* g_chans; /* read-only, owned by config.c   */
+static const char* g_out_dir;    /* read-only, owned by main.c     */
 
 /* Largest output template suffix we ever append to a directory. */
 #define TMPL_SUFFIX_MAX 64
@@ -65,12 +65,9 @@ static char g_ffmpeg_wrapper[PATH_MAX];
  * Point g_ffmpeg_wrapper at dir/ffmpeg-quiet, leaving it empty when there is
  * nothing executable there or the path would not fit.
  */
-static void wrapper_in(const char *dir)
-{
-    int n = snprintf(g_ffmpeg_wrapper, sizeof g_ffmpeg_wrapper,
-                     "%s/%s", dir, FFMPEG_WRAPPER);
-    if (n <= 0 || (size_t)n >= sizeof g_ffmpeg_wrapper ||
-        access(g_ffmpeg_wrapper, X_OK) != 0)
+static void wrapper_in(const char* dir) {
+    int n = snprintf(g_ffmpeg_wrapper, sizeof g_ffmpeg_wrapper, "%s/%s", dir, FFMPEG_WRAPPER);
+    if (n <= 0 || (size_t)n >= sizeof g_ffmpeg_wrapper || access(g_ffmpeg_wrapper, X_OK) != 0)
         g_ffmpeg_wrapper[0] = '\0';
 }
 
@@ -91,9 +88,8 @@ static void wrapper_in(const char *dir)
  * wrapper costs readability of the per-channel log, never of the terminal,
  * so it is never fatal - and either answer is logged.
  */
-static void resolve_ffmpeg_wrapper(void)
-{
-    const char *env = getenv("SS_WRAPPER_DIR");
+static void resolve_ffmpeg_wrapper(void) {
+    const char* env = getenv("SS_WRAPPER_DIR");
     if (env && *env)
         wrapper_in(env);
 
@@ -102,7 +98,7 @@ static void resolve_ffmpeg_wrapper(void)
         ssize_t n = readlink("/proc/self/exe", exe, sizeof exe - 1);
         if (n > 0 && (size_t)n < sizeof exe) {
             exe[n] = '\0';
-            char *slash = strrchr(exe, '/');
+            char* slash = strrchr(exe, '/');
             if (slash) {
                 *slash = '\0';
                 wrapper_in(exe);
@@ -122,8 +118,7 @@ static void resolve_ffmpeg_wrapper(void)
  * Map a channel to its slot. Returns NULL for anything that is not
  * part of the array recorder_init() was given.
  */
-static rec_slot_t *slot_of(const channel_t *ch)
-{
+static rec_slot_t* slot_of(const channel_t* ch) {
     if (!g_slots || !g_chans)
         return NULL;
     size_t i = (size_t)(ch - g_chans);
@@ -138,14 +133,13 @@ static rec_slot_t *slot_of(const channel_t *ch)
  * and before any other recorder function. Returns false if the slot
  * array cannot be allocated.
  */
-bool recorder_init(const channel_t *chans, size_t n, const char *out_dir)
-{
-    g_chans   = chans;
+bool recorder_init(const channel_t* chans, size_t n, const char* out_dir) {
+    g_chans = chans;
     g_out_dir = out_dir;
-    g_nslots  = n;
+    g_nslots = n;
     /* calloc, not malloc: pid / thread / has_thread must start
      * zeroed, or shutdown would act on whatever the heap held. */
-    g_slots   = n ? calloc(n, sizeof *g_slots) : NULL;
+    g_slots = n ? calloc(n, sizeof *g_slots) : NULL;
     if (n && !g_slots) {
         logmsg(LOG_ERROR, "recorder: cannot allocate %zu slot(s)", n);
         g_nslots = 0;
@@ -172,18 +166,16 @@ bool recorder_init(const channel_t *chans, size_t n, const char *out_dir)
  * Never falls back to kill(pid, ...) - a pid here is either alive or, on the
  * cleanup path, already reaped, and a recycled pid must not be signalled.
  */
-static void signal_group(pid_t pgid, int sig)
-{
+static void signal_group(pid_t pgid, int sig) {
     if (pgid > 0)
-        (void)kill(-pgid, sig);       /* ESRCH: nothing left in the group */
+        (void)kill(-pgid, sig); /* ESRCH: nothing left in the group */
 }
 
 /*
  * Ask a live recording to stop: the group, so ffmpeg is asked too, falling
  * back to the single pid for a child that never became a group leader.
  */
-static void signal_recording(pid_t pid, int sig)
-{
+static void signal_recording(pid_t pid, int sig) {
     if (kill(-pid, sig) != 0)
         (void)kill(pid, sig);
 }
@@ -192,8 +184,7 @@ static void signal_recording(pid_t pid, int sig)
  * Build the on-disk destination directory for a channel. Returns false if the
  * result would be truncated, in which case the caller must not record.
  */
-static bool channel_dir(const channel_t *ch, char *buf, size_t bufsz)
-{
+static bool channel_dir(const channel_t* ch, char* buf, size_t bufsz) {
     int n = snprintf(buf, bufsz, "%s/%s", g_out_dir, ch->slug);
     if (n < 0 || (size_t)n >= bufsz) {
         logmsg(LOG_ERROR, "%s: output path too long, skipping", ch->slug);
@@ -207,8 +198,7 @@ static bool channel_dir(const channel_t *ch, char *buf, size_t bufsz)
  * output: <out_dir>/<slug>.log. Appended to, never truncated, so a channel
  * that is re-recorded keeps the log of the attempt that failed.
  */
-static bool channel_logpath(const channel_t *ch, char *buf, size_t bufsz)
-{
+static bool channel_logpath(const channel_t* ch, char* buf, size_t bufsz) {
     int n = snprintf(buf, bufsz, "%s/%s.log", g_out_dir, ch->slug);
     return n >= 0 && (size_t)n < bufsz;
 }
@@ -220,15 +210,14 @@ static bool channel_logpath(const channel_t *ch, char *buf, size_t bufsz)
  * ends, so this thread's lifetime == the stream's lifetime. When the child is
  * reaped we clear the busy flag and exit.
  */
-static void *record_thread(void *arg)
-{
+static void* record_thread(void* arg) {
     /*
      * The thread owns exactly one slot; the channel it records sits
      * at the same index in the array recorder_init() was given, and
      * the stream to record is the URL the slot carries.
      */
-    rec_slot_t *slot = arg;
-    const channel_t *ch = &g_chans[(size_t)(slot - g_slots)];
+    rec_slot_t* slot = arg;
+    const channel_t* ch = &g_chans[(size_t)(slot - g_slots)];
 
     char dir[PATH_MAX];
     if (!channel_dir(ch, dir, sizeof dir)) {
@@ -240,8 +229,8 @@ static void *record_thread(void *arg)
     mkdir_p(dir);
 
     char tmpl[PATH_MAX + TMPL_SUFFIX_MAX];
-    int tn = snprintf(tmpl, sizeof tmpl,
-                      "%s/%%(upload_date)s_%%(time)s_%%(title).80s.%%(ext)s", dir);
+    int tn =
+        snprintf(tmpl, sizeof tmpl, "%s/%%(upload_date)s_%%(time)s_%%(title).80s.%%(ext)s", dir);
     if (tn < 0 || (size_t)tn >= sizeof tmpl) {
         logmsg(LOG_ERROR, "%s: output template too long, skipping", ch->slug);
         free(slot->stream_url);
@@ -252,25 +241,29 @@ static void *record_thread(void *arg)
 
     /* Settled once in recorder_init(); NULL simply leaves ffmpeg at its
      * default verbosity, which is only ever visible in the channel log. */
-    const char *wrapper = g_ffmpeg_wrapper[0] ? g_ffmpeg_wrapper : NULL;
+    const char* wrapper = g_ffmpeg_wrapper[0] ? g_ffmpeg_wrapper : NULL;
 
-    char *argv[16];
-    int  ai = 0;
+    char* argv[16];
+    int ai = 0;
 
-    argv[ai++] = (char *)"yt-dlp";
+    argv[ai++] = (char*)"yt-dlp";
     /* Output goes to a file, not a tty: one progress line per update keeps
      * the log greppable instead of collapsing into a single \r-carried line. */
-    argv[ai++] = (char *)"--newline";
-    argv[ai++] = (char *)"--continue";
-    argv[ai++] = (char *)"--no-playlist";           /* never fan out to a playlist */
-    argv[ai++] = (char *)"--retries";              argv[ai++] = (char *)"5";
-    argv[ai++] = (char *)"--fragment-retries";     argv[ai++] = (char *)"20";
-    argv[ai++] = (char *)"--concurrent-fragments"; argv[ai++] = (char *)"4";
+    argv[ai++] = (char*)"--newline";
+    argv[ai++] = (char*)"--continue";
+    argv[ai++] = (char*)"--no-playlist"; /* never fan out to a playlist */
+    argv[ai++] = (char*)"--retries";
+    argv[ai++] = (char*)"5";
+    argv[ai++] = (char*)"--fragment-retries";
+    argv[ai++] = (char*)"20";
+    argv[ai++] = (char*)"--concurrent-fragments";
+    argv[ai++] = (char*)"4";
     if (wrapper) {
-        argv[ai++] = (char *)"--ffmpeg-location";
-        argv[ai++] = (char *)wrapper;
+        argv[ai++] = (char*)"--ffmpeg-location";
+        argv[ai++] = (char*)wrapper;
     }
-    argv[ai++] = (char *)"-o";                      argv[ai++] = tmpl;
+    argv[ai++] = (char*)"-o";
+    argv[ai++] = tmpl;
     /*
      * The target is the URL in the slot, never ch->url: the channel page
      * is what the *probe* fetched, and handing it to yt-dlp records
@@ -294,12 +287,11 @@ static void *record_thread(void *arg)
      */
     char logpath[PATH_MAX];
     logpath[0] = '\0';
-    int  logfd = -1;
+    int logfd = -1;
     if (channel_logpath(ch, logpath, sizeof logpath)) {
         logfd = open(logpath, O_WRONLY | O_CREAT | O_APPEND | O_CLOEXEC, 0644);
         if (logfd < 0)
-            logmsg(LOG_WARN, "%s: cannot open %s: %s",
-                   ch->slug, logpath, strerror(errno));
+            logmsg(LOG_WARN, "%s: cannot open %s: %s", ch->slug, logpath, strerror(errno));
     }
 
     /* Stamped before the fork so DONE/FAIL covers the whole run. */
@@ -331,11 +323,13 @@ static void *record_thread(void *arg)
         child_err = fcntl(logfd, F_DUPFD_CLOEXEC, 3);
 
         if ((have_null && child_in < 0) || child_out < 0 || child_err < 0) {
-            logmsg(LOG_WARN, "%s: cannot prepare log descriptors: %s",
-                   ch->slug, strerror(errno));
-            if (child_in  >= 0) close(child_in);
-            if (child_out >= 0) close(child_out);
-            if (child_err >= 0) close(child_err);
+            logmsg(LOG_WARN, "%s: cannot prepare log descriptors: %s", ch->slug, strerror(errno));
+            if (child_in >= 0)
+                close(child_in);
+            if (child_out >= 0)
+                close(child_out);
+            if (child_err >= 0)
+                close(child_err);
             child_in = child_out = child_err = -1;
             have_null = 0;
         }
@@ -344,9 +338,8 @@ static void *record_thread(void *arg)
     /* Pre-formatted, because the child cannot call strerror() either.
      * ENOENT is what execvp() realistically reports here: yt-dlp not on PATH. */
     char exec_err[256];
-    int  exec_err_len = snprintf(exec_err, sizeof exec_err,
-                                 "stream-sniper: execvp(\"yt-dlp\") failed: %s\n",
-                                 strerror(ENOENT));
+    int exec_err_len = snprintf(exec_err, sizeof exec_err,
+                                "stream-sniper: execvp(\"yt-dlp\") failed: %s\n", strerror(ENOENT));
 
     /* Fork while holding the lock so shutdown can never miss the pid. */
     pthread_mutex_lock(&g_state_mtx);
@@ -363,7 +356,7 @@ static void *record_thread(void *arg)
          */
         (void)setpgid(0, 0);
         if (have_null)
-            (void)dup2(child_in, STDIN_FILENO);   /* no tty to steal */
+            (void)dup2(child_in, STDIN_FILENO); /* no tty to steal */
         if (child_out >= 0)
             (void)dup2(child_out, STDOUT_FILENO);
         if (child_err >= 0)
@@ -388,10 +381,14 @@ static void *record_thread(void *arg)
     }
     pthread_mutex_unlock(&g_state_mtx);
 
-    if (child_in  >= 0) close(child_in);
-    if (child_out >= 0) close(child_out);
-    if (child_err >= 0) close(child_err);
-    if (logfd >= 0)   close(logfd);
+    if (child_in >= 0)
+        close(child_in);
+    if (child_out >= 0)
+        close(child_out);
+    if (child_err >= 0)
+        close(child_err);
+    if (logfd >= 0)
+        close(logfd);
 
     /*
      * fork() handed the child its own copy of the URL (and of
@@ -410,8 +407,7 @@ static void *record_thread(void *arg)
         return NULL;
     }
 
-    logmsg(LOG_INFO, "REC  %-*s pid %-7d -> %s", LOG_SLUG_COL, ch->slug,
-           (int)pid, dir);
+    logmsg(LOG_INFO, "REC  %-*s pid %-7d -> %s", LOG_SLUG_COL, ch->slug, (int)pid, dir);
     /*
      * The fork succeeded, so yt-dlp is running: this is the one
      * start notification per recording. The early failures above
@@ -467,13 +463,11 @@ static void *record_thread(void *arg)
     if (clean)
         logmsg(LOG_INFO, "DONE %-*s recorded %s", LOG_SLUG_COL, ch->slug, dur);
     else if (WIFEXITED(status))
-        logmsg(LOG_WARN, "FAIL %-*s yt-dlp exit %d after %s%s%s",
-               LOG_SLUG_COL, ch->slug, WEXITSTATUS(status), dur,
-               logpath[0] ? " - see " : "", logpath[0] ? logpath : "");
+        logmsg(LOG_WARN, "FAIL %-*s yt-dlp exit %d after %s%s%s", LOG_SLUG_COL, ch->slug,
+               WEXITSTATUS(status), dur, logpath[0] ? " - see " : "", logpath[0] ? logpath : "");
     else
-        logmsg(LOG_WARN, "STOP %-*s killed by signal %d after %s%s%s",
-               LOG_SLUG_COL, ch->slug, WTERMSIG(status), dur,
-               logpath[0] ? " - see " : "", logpath[0] ? logpath : "");
+        logmsg(LOG_WARN, "STOP %-*s killed by signal %d after %s%s%s", LOG_SLUG_COL, ch->slug,
+               WTERMSIG(status), dur, logpath[0] ? " - see " : "", logpath[0] ? logpath : "");
 
     /*
      * One stop for every start: natural stream end, yt-dlp failure,
@@ -485,20 +479,18 @@ static void *record_thread(void *arg)
     return NULL;
 }
 
-bool recorder_is_busy(const channel_t *ch)
-{
+bool recorder_is_busy(const channel_t* ch) {
     /*
      * One atomic load, no lock. The poll loop calls this for every channel on
      * every tick, so making it take the recorder's private mutex serialised
      * the whole poll loop behind the thread that was recording.
      */
-    rec_slot_t *slot = slot_of(ch);
+    rec_slot_t* slot = slot_of(ch);
     return slot && atomic_load_explicit(&slot->recording, memory_order_acquire);
 }
 
-bool recorder_tried_live(const channel_t *ch)
-{
-    rec_slot_t *slot = slot_of(ch);
+bool recorder_tried_live(const channel_t* ch) {
+    rec_slot_t* slot = slot_of(ch);
     if (!slot)
         return false;
     pthread_mutex_lock(&g_state_mtx);
@@ -507,9 +499,8 @@ bool recorder_tried_live(const channel_t *ch)
     return tried;
 }
 
-void recorder_reset_live(const channel_t *ch)
-{
-    rec_slot_t *slot = slot_of(ch);
+void recorder_reset_live(const channel_t* ch) {
+    rec_slot_t* slot = slot_of(ch);
     if (!slot)
         return;
     pthread_mutex_lock(&g_state_mtx);
@@ -523,9 +514,8 @@ void recorder_reset_live(const channel_t *ch)
  * slot for the recording thread, and freed by this function
  * on every path that never gets that far.
  */
-bool recorder_start(const channel_t *ch, char *stream_url)
-{
-    rec_slot_t *slot = slot_of(ch);
+bool recorder_start(const channel_t* ch, char* stream_url) {
+    rec_slot_t* slot = slot_of(ch);
     if (!slot) {
         free(stream_url);
         return false;
@@ -556,7 +546,7 @@ bool recorder_start(const channel_t *ch, char *stream_url)
 
     int rc = pthread_create(&slot->thread, NULL, record_thread, slot);
     if (rc != 0) {
-        slot->stream_url = NULL;         /* no thread: the slot is ours */
+        slot->stream_url = NULL; /* no thread: the slot is ours */
         atomic_store_explicit(&slot->recording, false, memory_order_release);
         pthread_mutex_unlock(&g_state_mtx);
         free(stream_url);
@@ -568,8 +558,7 @@ bool recorder_start(const channel_t *ch, char *stream_url)
     return true;
 }
 
-void recorder_shutdown(void)
-{
+void recorder_shutdown(void) {
     /* Signal every live recording under the lock: the process group, so
      * the ffmpeg underneath yt-dlp stops with it, and the slot's own
      * record that we asked - which is what tells the thread not to also
@@ -577,8 +566,7 @@ void recorder_shutdown(void)
     pthread_mutex_lock(&g_state_mtx);
     for (size_t i = 0; i < g_nslots; i++) {
         if (g_slots[i].pid > 0) {
-            logmsg(LOG_INFO, "stopping %s (pid %d)",
-                   g_chans[i].slug, (int)g_slots[i].pid);
+            logmsg(LOG_INFO, "stopping %s (pid %d)", g_chans[i].slug, (int)g_slots[i].pid);
             g_slots[i].asked_stop = true;
             signal_recording(g_slots[i].pid, SIGTERM);
         }
@@ -594,8 +582,8 @@ void recorder_shutdown(void)
     }
 
     free(g_slots);
-    g_slots   = NULL;
-    g_nslots  = 0;
-    g_chans   = NULL;
+    g_slots = NULL;
+    g_nslots = 0;
+    g_chans = NULL;
     g_out_dir = NULL;
 }

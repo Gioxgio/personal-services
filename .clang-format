@@ -1,0 +1,55 @@
+---
+# Single canonical clang-format config for the whole repo.
+#
+# Applies to download-service, notification-service, stream-sniper and
+# modules/. clang-format walks up from each source file to find the nearest
+# .clang-format, so this root file governs every service; per-service copies
+# are intentionally absent to avoid drift.
+#
+# Style: LLVM base + repo overrides.
+#   - 4-space indentation, no tabs
+#   - K&R braces (brace attached to the construct) — matches download-service
+#     and notification-service, the two services that already share a style.
+#   - column limit 100
+#   - C11
+
+BasedOnStyle: LLVM
+
+IndentWidth: 4
+IndentCaseLabels: true
+TabWidth: 4
+UseTab: Never
+
+ColumnLimit: 100
+
+BreakBeforeBraces: Attach
+AllowShortBlocksOnASingleLine: Never
+AllowShortCaseLabelsOnASingleLine: false
+AllowShortFunctionsOnASingleLine: None
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+
+AllowAllParametersOfDeclarationOnNextLine: true
+
+SortIncludes: CaseInsensitive
+IncludeBlocks: Regroup
+
+KeepEmptyLines:
+  AtEndOfFile: true
+MaxEmptyLinesToKeep: 1
+
+InsertNewlineAtEOF: true
+
+PointerAlignment: Left
+ReferenceAlignment: Left
+
+SpaceAfterTemplateKeyword: false
+SpaceBeforeAssignmentOperators: true
+SpaceBeforeParens: ControlStatements
+SpaceInEmptyBlock: false
+SpacesBeforeTrailingComments: 1
+SpacesInAngles: Never
+SpacesInContainerLiterals: true
+SpaceAfterCStyleCast: false
+SpaceAfterLogicalNot: false
+SpaceBeforeSquareBrackets: false

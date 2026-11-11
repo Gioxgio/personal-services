@@ -12,11 +12,10 @@
  * directory is left in place; the caller must call download_cleanup() on the
  * returned path once the file has been served.
  */
-int download_media(const char *yt_dlp_path, const char *download_dir,
-                   const char *url, const char *format,
-                   char *out_path, size_t out_cap);
+int download_media(const char* yt_dlp_path, const char* download_dir, const char* url,
+                   const char* format, char* out_path, size_t out_cap);
 
 /* Remove the temporary directory that holds the downloaded file. */
-void download_cleanup(const char *file_path);
+void download_cleanup(const char* file_path);
 
 #endif

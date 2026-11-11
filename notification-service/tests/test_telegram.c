@@ -13,12 +13,11 @@ static int passed = 0;
 static int failed = 0;
 
 static void sleep_ms(int ms) {
-    struct timespec ts = {.tv_sec = ms / 1000,
-                          .tv_nsec = (long)(ms % 1000) * 1000000L};
+    struct timespec ts = {.tv_sec = ms / 1000, .tv_nsec = (long)(ms % 1000) * 1000000L};
     nanosleep(&ts, NULL);
 }
 
-static void check(bool condition, const char *name) {
+static void check(bool condition, const char* name) {
     if (condition) {
         printf("PASS: %s\n", name);
         passed++;
@@ -33,10 +32,10 @@ static void check(bool condition, const char *name) {
 typedef struct {
     int port;
     int status_code;
-    const char *response_body;
+    const char* response_body;
 } mock_server_config_t;
 
-static int mock_server_run(const mock_server_config_t *cfg) {
+static int mock_server_run(const mock_server_config_t* cfg) {
     int server_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (server_fd < 0)
         return -1;
@@ -49,7 +48,7 @@ static int mock_server_run(const mock_server_config_t *cfg) {
     addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
     addr.sin_port = htons((uint16_t)cfg->port);
 
-    if (bind(server_fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+    if (bind(server_fd, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
         close(server_fd);
         return -1;
     }
@@ -70,8 +69,7 @@ static int mock_server_run(const mock_server_config_t *cfg) {
         char buf[8192];
         ssize_t total = 0;
         while (total < (ssize_t)sizeof(buf) - 1) {
-            ssize_t n =
-                recv(client_fd, buf + total, sizeof(buf) - 1 - total, 0);
+            ssize_t n = recv(client_fd, buf + total, sizeof(buf) - 1 - total, 0);
             if (n <= 0)
                 break;
             total += n;
@@ -83,16 +81,15 @@ static int mock_server_run(const mock_server_config_t *cfg) {
 
     /**** Send response ****/
     char response[2048];
-    int len =
-        snprintf(response, sizeof(response),
-                 "HTTP/1.1 %d %s\r\n"
-                 "Content-Type: application/json\r\n"
-                 "Content-Length: %zu\r\n"
-                 "Connection: close\r\n"
-                 "\r\n"
-                 "%s",
-                 cfg->status_code, cfg->status_code == 200 ? "OK" : "Error",
-                 strlen(cfg->response_body), cfg->response_body);
+    int len = snprintf(response, sizeof(response),
+                       "HTTP/1.1 %d %s\r\n"
+                       "Content-Type: application/json\r\n"
+                       "Content-Length: %zu\r\n"
+                       "Connection: close\r\n"
+                       "\r\n"
+                       "%s",
+                       cfg->status_code, cfg->status_code == 200 ? "OK" : "Error",
+                       strlen(cfg->response_body), cfg->response_body);
 
     send(client_fd, response, (size_t)len, 0);
     close(client_fd);
@@ -112,8 +109,7 @@ static void test_json_escape_string(void) {
 
     /* Double quote */
     len = json_escape_string("say \"hi\"", out, sizeof(out));
-    check(len == 10 && strcmp(out, "say \\\"hi\\\"") == 0,
-          "escape: double quote");
+    check(len == 10 && strcmp(out, "say \\\"hi\\\"") == 0, "escape: double quote");
 
     /* Backslash */
     len = json_escape_string("a\\b", out, sizeof(out));
@@ -143,13 +139,11 @@ static void test_json_escape_string(void) {
     len = json_escape_string("a\x01"
                              "b",
                              out, sizeof(out));
-    check(len == 8 && strcmp(out, "a\\u0001b") == 0,
-          "escape: control char 0x01");
+    check(len == 8 && strcmp(out, "a\\u0001b") == 0, "escape: control char 0x01");
 
     /* All standard escapes combined */
     len = json_escape_string("\"\\\n\r\t\b\f", out, sizeof(out));
-    check(len == 14 && strcmp(out, "\\\"\\\\\\n\\r\\t\\b\\f") == 0,
-          "escape: all standard escapes");
+    check(len == 14 && strcmp(out, "\\\"\\\\\\n\\r\\t\\b\\f") == 0, "escape: all standard escapes");
 
     /* Raw UTF-8 emoji — should pass through unescaped */
     len = json_escape_string("hello\xF0\x9F\x98\x80", out, sizeof(out));
@@ -158,8 +152,7 @@ static void test_json_escape_string(void) {
 
     /* Raw UTF-8 accented — should pass through */
     len = json_escape_string("caf\xC3\xA9", out, sizeof(out));
-    check(len == 5 && strcmp(out, "caf\xC3\xA9") == 0,
-          "escape: raw UTF-8 accented passthrough");
+    check(len == 5 && strcmp(out, "caf\xC3\xA9") == 0, "escape: raw UTF-8 accented passthrough");
 
     /* Empty string */
     len = json_escape_string("", out, sizeof(out));
@@ -275,11 +268,9 @@ static void test_telegram_send_message(void) {
     sleep_ms(100);
 
     setenv("TELEGRAM_API_URL", "http://127.0.0.1:18923", 1);
-    ret = telegram_send_message(&config, &payload, response_buf,
-                                sizeof(response_buf));
+    ret = telegram_send_message(&config, &payload, response_buf, sizeof(response_buf));
     check(ret == 200, "send: returns 200 on success");
-    check(strstr(response_buf, "{\"ok\":true") != NULL,
-          "send: response body captured");
+    check(strstr(response_buf, "{\"ok\":true") != NULL, "send: response body captured");
 
     /* Wait for child */
     int status;
@@ -297,8 +288,7 @@ static void test_telegram_send_message(void) {
     }
 
     sleep_ms(100);
-    ret = telegram_send_message(&config, &payload, response_buf,
-                                sizeof(response_buf));
+    ret = telegram_send_message(&config, &payload, response_buf, sizeof(response_buf));
     check(ret == 400, "send: returns 400 on bad request");
 
     waitpid(pid, &status, 0);
@@ -313,8 +303,7 @@ static void test_telegram_send_message(void) {
     }
 
     sleep_ms(100);
-    ret = telegram_send_message(&config, &payload, response_buf,
-                                sizeof(response_buf));
+    ret = telegram_send_message(&config, &payload, response_buf, sizeof(response_buf));
     check(ret == 401, "send: returns 401 on unauthorized");
 
     waitpid(pid, &status, 0);
@@ -329,16 +318,14 @@ static void test_telegram_send_message(void) {
     }
 
     sleep_ms(100);
-    ret = telegram_send_message(&config, &payload, response_buf,
-                                sizeof(response_buf));
+    ret = telegram_send_message(&config, &payload, response_buf, sizeof(response_buf));
     check(ret == 429, "send: returns 429 on rate limit");
 
     waitpid(pid, &status, 0);
 
     /* Test network failure — nothing listening on port 18924 */
     setenv("TELEGRAM_API_URL", "http://127.0.0.1:18924", 1);
-    ret = telegram_send_message(&config, &payload, response_buf,
-                                sizeof(response_buf));
+    ret = telegram_send_message(&config, &payload, response_buf, sizeof(response_buf));
     check(ret == -1, "send: returns -1 on network failure");
 
     /* Test with NULL response buffer */
@@ -367,8 +354,7 @@ static void test_telegram_send_message(void) {
     }
 
     sleep_ms(100);
-    ret = telegram_send_message(&config, &payload, response_buf,
-                                sizeof(response_buf));
+    ret = telegram_send_message(&config, &payload, response_buf, sizeof(response_buf));
     check(ret == 200, "send: special characters in message");
 
     waitpid(pid, &status, 0);

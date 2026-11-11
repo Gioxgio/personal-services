@@ -13,6 +13,7 @@
  */
 
 #include "harness.h"
+#include "http.h"
 
 #include <arpa/inet.h>
 #include <errno.h>
@@ -26,8 +27,6 @@
 #include <string.h>
 #include <sys/socket.h>
 #include <unistd.h>
-
-#include "http.h"
 
 /* --- the loopback server --- */
 
@@ -43,13 +42,12 @@ static int g_port;
 static atomic_bool g_serve = ATOMIC_VAR_INIT(true);
 static pthread_t g_server_thread;
 
-static void *server_main(void *arg)
-{
+static void* server_main(void* arg) {
     (void)arg;
     while (atomic_load_explicit(&g_serve, memory_order_relaxed)) {
-        struct pollfd pfd = { .fd = g_listen_fd, .events = POLLIN };
+        struct pollfd pfd = {.fd = g_listen_fd, .events = POLLIN};
         if (poll(&pfd, 1, 50) <= 0)
-            continue;                   /* timeout or EINTR */
+            continue; /* timeout or EINTR */
 
         int fd = accept(g_listen_fd, NULL, NULL);
         if (fd < 0)
@@ -73,11 +71,12 @@ static void *server_main(void *arg)
         }
 
         if (total > 0 && strstr(req, "GET /hello ")) {
-            const char *body = "hello over loopback\n";
-            dprintf(fd, "HTTP/1.1 200 OK\r\n"
-                        "Content-Length: %zu\r\n"
-                        "Connection: close\r\n"
-                        "\r\n%s",
+            const char* body = "hello over loopback\n";
+            dprintf(fd,
+                    "HTTP/1.1 200 OK\r\n"
+                    "Content-Length: %zu\r\n"
+                    "Connection: close\r\n"
+                    "\r\n%s",
                     strlen(body), body);
         } else {
             dprintf(fd, "HTTP/1.1 404 Not Found\r\n"
@@ -90,8 +89,7 @@ static void *server_main(void *arg)
     return NULL;
 }
 
-static void server_start(void)
-{
+static void server_start(void) {
     g_listen_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (g_listen_fd < 0) {
         perror("socket");
@@ -100,17 +98,17 @@ static void server_start(void)
     int one = 1;
     setsockopt(g_listen_fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof one);
 
-    struct sockaddr_in addr = { 0 };
+    struct sockaddr_in addr = {0};
     addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-    addr.sin_port = 0;                  /* ephemeral: no collisions */
-    if (bind(g_listen_fd, (struct sockaddr *)&addr, sizeof addr) != 0 ||
+    addr.sin_port = 0; /* ephemeral: no collisions */
+    if (bind(g_listen_fd, (struct sockaddr*)&addr, sizeof addr) != 0 ||
         listen(g_listen_fd, 8) != 0) {
         perror("bind/listen");
         exit(1);
     }
     socklen_t alen = sizeof addr;
-    if (getsockname(g_listen_fd, (struct sockaddr *)&addr, &alen) != 0) {
+    if (getsockname(g_listen_fd, (struct sockaddr*)&addr, &alen) != 0) {
         perror("getsockname");
         exit(1);
     }
@@ -122,16 +120,14 @@ static void server_start(void)
     }
 }
 
-static void server_stop(void)
-{
+static void server_stop(void) {
     atomic_store_explicit(&g_serve, false, memory_order_relaxed);
     pthread_join(g_server_thread, NULL);
     close(g_listen_fd);
     g_listen_fd = -1;
 }
 
-int main(void)
-{
+int main(void) {
     http_global_init();
     server_start();
 
@@ -142,9 +138,9 @@ int main(void)
 
     char url[128];
     snprintf(url, sizeof url, "%s/hello", base);
-    const char *hdrs[] = { "X-Test: yes", NULL };
+    const char* hdrs[] = {"X-Test: yes", NULL};
 
-    http_buffer out = { 0 };
+    http_buffer out = {0};
     long status = 0;
     CHECK(http_get_ex(url, hdrs, &out, &status) == 0);
     CHECK(status == 200);
@@ -154,16 +150,16 @@ int main(void)
 
     /* --- the contract: *out is reset on entry, not appended to --- */
 
-    out.data = (char *)"stale!";
+    out.data = (char*)"stale!";
     out.len = 5;
     CHECK(http_get(url, NULL, &out) == 0);
-    CHECK(out.len == 20);               /* the stale bytes are gone */
+    CHECK(out.len == 20); /* the stale bytes are gone */
     http_buffer_free(&out);
 
     /* --- non-200: the buffer is emptied and the status reported --- */
 
     snprintf(url, sizeof url, "%s/missing", base);
-    out.data = (char *)"stale!";
+    out.data = (char*)"stale!";
     out.len = 5;
     status = -1;
     CHECK(http_get_ex(url, NULL, &out, &status) == -1);
@@ -172,7 +168,7 @@ int main(void)
 
     /* --- no HTTP response at all: status 0, buffer empty --- */
 
-    out.data = (char *)"stale!";
+    out.data = (char*)"stale!";
     out.len = 5;
     CHECK(http_get_ex("http://", NULL, &out, &status) == -1);
     CHECK(status == 0);

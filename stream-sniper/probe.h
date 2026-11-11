@@ -11,8 +11,9 @@
 #ifndef PROBE_H
 #define PROBE_H
 
-#include <stdbool.h>
 #include "urlparse.h"
+
+#include <stdbool.h>
 
 /*
  * Three outcomes, not two. Folding a transport failure into "offline" makes a
@@ -20,9 +21,9 @@
  * every sweep forever; keeping it separate lets the caller back off instead.
  */
 typedef enum {
-    PROBE_OFFLINE,   /* definitively not live                        */
-    PROBE_LIVE,      /* live; *out_stream_url is the broadcast URL */
-    PROBE_ERROR      /* the probe itself failed: DNS, connect, TLS, timeout */
+    PROBE_OFFLINE, /* definitively not live                        */
+    PROBE_LIVE,    /* live; *out_stream_url is the broadcast URL */
+    PROBE_ERROR    /* the probe itself failed: DNS, connect, TLS, timeout */
 } probe_result_t;
 
 /*
@@ -35,6 +36,6 @@ typedef enum {
  *
  * out_stream_url must not be NULL.
  */
-probe_result_t probe_is_live(const channel_t *ch, char **out_stream_url);
+probe_result_t probe_is_live(const channel_t* ch, char** out_stream_url);
 
 #endif /* PROBE_H */

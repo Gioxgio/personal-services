@@ -25,12 +25,11 @@ static int failed = 0;
 static int errors = 0;
 
 static void sleep_ms(int ms) {
-    struct timespec ts = {.tv_sec = ms / 1000,
-                          .tv_nsec = (long)(ms % 1000) * 1000000L};
+    struct timespec ts = {.tv_sec = ms / 1000, .tv_nsec = (long)(ms % 1000) * 1000000L};
     nanosleep(&ts, NULL);
 }
 
-static void check(bool condition, const char *name) {
+static void check(bool condition, const char* name) {
     if (condition) {
         printf("PASS: %s\n", name);
         passed++;
@@ -48,18 +47,15 @@ static void test_find_header_end(void) {
 
     /* "POST / HTTP/1.1" then the terminator: verify the exact offset. */
     strcpy(buf, "POST / HTTP/1.1\r\n\r\nBODY");
-    const char *expected = strstr(buf, "\r\n\r\n");
-    char *end = find_header_end(buf, 24);
-    check(end != NULL && expected != NULL && end == expected,
-          "header_end: finds terminator");
+    const char* expected = strstr(buf, "\r\n\r\n");
+    char* end = find_header_end(buf, 24);
+    check(end != NULL && expected != NULL && end == expected, "header_end: finds terminator");
 
     /* A terminator split across two reads is only found once both halves land.
      */
     strcpy(buf, "X: 1\r\n\r\n");
-    check(find_header_end(buf, 6) == NULL,
-          "header_end: partial terminator not matched");
-    check(find_header_end(buf, 8) != NULL &&
-              (size_t)(find_header_end(buf, 8) - buf) == 4,
+    check(find_header_end(buf, 6) == NULL, "header_end: partial terminator not matched");
+    check(find_header_end(buf, 8) != NULL && (size_t)(find_header_end(buf, 8) - buf) == 4,
           "header_end: terminator completed by second read");
 
     strcpy(buf, "no terminator here");
@@ -74,47 +70,44 @@ static void test_parse_request_line(void) {
     char method[MAX_METHOD_LEN];
     char path[MAX_PATH_LEN];
 
-    check(parse_request_line("POST /notifications HTTP/1.1", method,
-                             sizeof(method), path, sizeof(path)) &&
-              strcmp(method, "POST") == 0 &&
-              strcmp(path, "/notifications") == 0,
+    check(parse_request_line("POST /notifications HTTP/1.1", method, sizeof(method), path,
+                             sizeof(path)) &&
+              strcmp(method, "POST") == 0 && strcmp(path, "/notifications") == 0,
           "request_line: standard POST");
 
-    check(parse_request_line("GET /notifications HTTP/1.1", method,
-                             sizeof(method), path, sizeof(path)) &&
+    check(parse_request_line("GET /notifications HTTP/1.1", method, sizeof(method), path,
+                             sizeof(path)) &&
               strcmp(method, "GET") == 0,
           "request_line: GET method");
 
     /* Query string is stripped so routing still matches */
-    check(parse_request_line("POST /notifications?debug=1 HTTP/1.1", method,
-                             sizeof(method), path, sizeof(path)) &&
+    check(parse_request_line("POST /notifications?debug=1 HTTP/1.1", method, sizeof(method), path,
+                             sizeof(path)) &&
               strcmp(path, "/notifications") == 0,
           "request_line: query string stripped");
 
     /* HTTP/0.9 style with no version token */
-    check(parse_request_line("GET /health", method, sizeof(method), path,
-                             sizeof(path)) &&
+    check(parse_request_line("GET /health", method, sizeof(method), path, sizeof(path)) &&
               strcmp(path, "/health") == 0,
           "request_line: missing version tolerated");
 
     check(!parse_request_line("", method, sizeof(method), path, sizeof(path)),
           "request_line: empty rejected");
 
+    check(!parse_request_line("POST", method, sizeof(method), path, sizeof(path)),
+          "request_line: no target rejected");
+
     check(
-        !parse_request_line("POST", method, sizeof(method), path, sizeof(path)),
-        "request_line: no target rejected");
+        !parse_request_line(" /notifications HTTP/1.1", method, sizeof(method), path, sizeof(path)),
+        "request_line: empty method rejected");
 
-    check(!parse_request_line(" /notifications HTTP/1.1", method,
-                              sizeof(method), path, sizeof(path)),
-          "request_line: empty method rejected");
-
-    check(!parse_request_line("POST notifications HTTP/1.1", method,
-                              sizeof(method), path, sizeof(path)),
+    check(!parse_request_line("POST notifications HTTP/1.1", method, sizeof(method), path,
+                              sizeof(path)),
           "request_line: relative target rejected");
 
     /* A path within the buffer is copied in full */
-    check(parse_request_line("POST /a/very/long/path HTTP/1.1", method,
-                             sizeof(method), path, sizeof(path)) &&
+    check(parse_request_line("POST /a/very/long/path HTTP/1.1", method, sizeof(method), path,
+                             sizeof(path)) &&
               strcmp(path, "/a/very/long/path") == 0,
           "request_line: long path accepted");
 
@@ -127,14 +120,13 @@ static void test_parse_request_line(void) {
         long_target[501] = '\0';
         char line[700];
         snprintf(line, sizeof(line), "POST %s HTTP/1.1", long_target);
-        check(!parse_request_line(line, method, sizeof(method), path,
-                                  sizeof(path)),
+        check(!parse_request_line(line, method, sizeof(method), path, sizeof(path)),
               "request_line: overlong path rejected");
     }
 
     /* Method longer than the buffer must be rejected, not overflowed */
-    check(!parse_request_line("VERYLONGMETHODNAME /notifications HTTP/1.1",
-                              method, sizeof(method), path, sizeof(path)),
+    check(!parse_request_line("VERYLONGMETHODNAME /notifications HTTP/1.1", method, sizeof(method),
+                              path, sizeof(path)),
           "request_line: overlong method rejected");
 }
 
@@ -143,57 +135,52 @@ static void test_parse_request_line(void) {
 static void test_parse_content_length(void) {
     long value = 0;
 
-    check(parse_content_length("POST /notifications HTTP/1.1\r\n\r\n",
-                               &value) == CL_ABSENT,
+    check(parse_content_length("POST /notifications HTTP/1.1\r\n\r\n", &value) == CL_ABSENT,
           "content_length: absent");
 
-    check(parse_content_length("POST / HTTP/1.1\r\nContent-Length: 18\r\n\r\n",
-                               &value) == CL_PRESENT &&
+    check(parse_content_length("POST / HTTP/1.1\r\nContent-Length: 18\r\n\r\n", &value) ==
+                  CL_PRESENT &&
               value == 18,
           "content_length: present");
 
-    check(parse_content_length("POST / HTTP/1.1\r\ncontent-length: 42\r\n\r\n",
-                               &value) == CL_PRESENT &&
+    check(parse_content_length("POST / HTTP/1.1\r\ncontent-length: 42\r\n\r\n", &value) ==
+                  CL_PRESENT &&
               value == 42,
           "content_length: header name is case-insensitive");
 
-    check(
-        parse_content_length("POST / HTTP/1.1\r\nContent-Length:   7  \r\n\r\n",
-                             &value) == CL_PRESENT &&
-            value == 7,
-        "content_length: surrounding whitespace tolerated");
+    check(parse_content_length("POST / HTTP/1.1\r\nContent-Length:   7  \r\n\r\n", &value) ==
+                  CL_PRESENT &&
+              value == 7,
+          "content_length: surrounding whitespace tolerated");
 
-    check(parse_content_length("POST / HTTP/1.1\r\nContent-Length: 0\r\n\r\n",
-                               &value) == CL_PRESENT &&
+    check(parse_content_length("POST / HTTP/1.1\r\nContent-Length: 0\r\n\r\n", &value) ==
+                  CL_PRESENT &&
               value == 0,
           "content_length: zero");
 
-    check(parse_content_length(
-              "POST / HTTP/1.1\r\nX-Other: 5\r\nContent-Length: 9\r\n\r\n",
-              &value) == CL_PRESENT &&
+    check(parse_content_length("POST / HTTP/1.1\r\nX-Other: 5\r\nContent-Length: 9\r\n\r\n",
+                               &value) == CL_PRESENT &&
               value == 9,
           "content_length: not confused by other headers");
 
-    check(parse_content_length(
-              "POST / HTTP/1.1\r\nContent-Type: application/json\r\n\r\n",
-              &value) == CL_ABSENT,
+    check(parse_content_length("POST / HTTP/1.1\r\nContent-Type: application/json\r\n\r\n",
+                               &value) == CL_ABSENT,
           "content_length: content-type alone is absent");
 
-    check(parse_content_length("POST / HTTP/1.1\r\nContent-Length: abc\r\n\r\n",
-                               &value) == CL_MALFORMED,
+    check(parse_content_length("POST / HTTP/1.1\r\nContent-Length: abc\r\n\r\n", &value) ==
+              CL_MALFORMED,
           "content_length: non-numeric is malformed");
 
-    check(parse_content_length("POST / HTTP/1.1\r\nContent-Length: -1\r\n\r\n",
-                               &value) == CL_MALFORMED,
+    check(parse_content_length("POST / HTTP/1.1\r\nContent-Length: -1\r\n\r\n", &value) ==
+              CL_MALFORMED,
           "content_length: negative is malformed");
 
-    check(parse_content_length("POST / HTTP/1.1\r\nContent-Length: \r\n\r\n",
-                               &value) == CL_MALFORMED,
+    check(parse_content_length("POST / HTTP/1.1\r\nContent-Length: \r\n\r\n", &value) ==
+              CL_MALFORMED,
           "content_length: empty value is malformed");
 
-    check(parse_content_length(
-              "POST / HTTP/1.1\r\nContent-Length: 99999999999999999999\r\n\r\n",
-              &value) == CL_MALFORMED,
+    check(parse_content_length("POST / HTTP/1.1\r\nContent-Length: 99999999999999999999\r\n\r\n",
+                               &value) == CL_MALFORMED,
           "content_length: overflow is malformed");
 }
 
@@ -208,8 +195,8 @@ static server_config_t make_config(void) {
 }
 
 /* Build a well-formed POST to /notifications with a matching Content-Length. */
-static void dispatch_post(const server_config_t *config, const char *body,
-                          http_response_t *response) {
+static void dispatch_post(const server_config_t* config, const char* body,
+                          http_response_t* response) {
     char headers[512];
     snprintf(headers, sizeof(headers),
              "POST /notifications HTTP/1.1\r\n"
@@ -221,10 +208,9 @@ static void dispatch_post(const server_config_t *config, const char *body,
     request_handler_dispatch(config, headers, body, strlen(body), response);
 }
 
-static void dispatch_raw(const server_config_t *config, const char *headers,
-                         const char *body, http_response_t *response) {
-    request_handler_dispatch(config, headers, body, body ? strlen(body) : 0,
-                             response);
+static void dispatch_raw(const server_config_t* config, const char* headers, const char* body,
+                         http_response_t* response) {
+    request_handler_dispatch(config, headers, body, body ? strlen(body) : 0, response);
 }
 
 static void test_dispatch(void) {
@@ -239,41 +225,30 @@ static void test_dispatch(void) {
     dispatch_raw(&config, "GET /other HTTP/1.1\r\n\r\n", "", &response);
     check(response.status_code == 404, "dispatch: unknown path is 404");
 
-    dispatch_raw(&config,
-                 "PUT /notifications HTTP/1.1\r\n\r\nContent-Length: 0\r\n\r\n",
-                 "", &response);
+    dispatch_raw(&config, "PUT /notifications HTTP/1.1\r\n\r\nContent-Length: 0\r\n\r\n", "",
+                 &response);
     check(response.status_code == 405, "dispatch: PUT /notifications is 405");
 
-    dispatch_raw(
-        &config,
-        "POST /notifications?x=1 HTTP/1.1\r\nContent-Length: 0\r\n\r\n", "",
-        &response);
-    check(response.status_code == 400,
-          "dispatch: query route with empty body is 400");
+    dispatch_raw(&config, "POST /notifications?x=1 HTTP/1.1\r\nContent-Length: 0\r\n\r\n", "",
+                 &response);
+    check(response.status_code == 400, "dispatch: query route with empty body is 400");
 
     /* --- framing errors --- */
 
-    dispatch_raw(&config, "POST /notifications HTTP/1.1\r\n\r\n",
-                 "{\"message\":\"hi\"}", &response);
-    check(response.status_code == 411,
-          "dispatch: missing Content-Length is 411");
+    dispatch_raw(&config, "POST /notifications HTTP/1.1\r\n\r\n", "{\"message\":\"hi\"}",
+                 &response);
+    check(response.status_code == 411, "dispatch: missing Content-Length is 411");
 
-    dispatch_raw(
-        &config,
-        "POST /notifications HTTP/1.1\r\nContent-Length: 99999999\r\n\r\n", "",
-        &response);
-    check(response.status_code == 413,
-          "dispatch: oversized Content-Length is 413");
+    dispatch_raw(&config, "POST /notifications HTTP/1.1\r\nContent-Length: 99999999\r\n\r\n", "",
+                 &response);
+    check(response.status_code == 413, "dispatch: oversized Content-Length is 413");
 
-    dispatch_raw(&config,
-                 "POST /notifications HTTP/1.1\r\nContent-Length: abc\r\n\r\n",
-                 "", &response);
-    check(response.status_code == 400,
-          "dispatch: malformed Content-Length is 400");
+    dispatch_raw(&config, "POST /notifications HTTP/1.1\r\nContent-Length: abc\r\n\r\n", "",
+                 &response);
+    check(response.status_code == 400, "dispatch: malformed Content-Length is 400");
 
     dispatch_raw(&config, "garbage", "", &response);
-    check(response.status_code == 400,
-          "dispatch: unparsable request line is 400");
+    check(response.status_code == 400, "dispatch: unparsable request line is 400");
 
     dispatch_raw(&config, NULL, "", &response);
     check(response.status_code == 500, "dispatch: NULL headers is 500");
@@ -300,24 +275,20 @@ static void test_dispatch(void) {
     check(response.status_code == 400, "dispatch: zero-length body is 400");
 
     /* Content-Length disagrees with the framed body length */
-    dispatch_raw(&config,
-                 "POST /notifications HTTP/1.1\r\nContent-Length: 5\r\n\r\n",
+    dispatch_raw(&config, "POST /notifications HTTP/1.1\r\nContent-Length: 5\r\n\r\n",
                  "{\"message\":\"hi\"}", &response);
     check(response.status_code == 400, "dispatch: length mismatch is 400");
 
     /* Response body shape */
     dispatch_post(&config, "bad", &response);
-    check(strcmp(response.body,
-                 "{\"status\": 400, \"message\": \"Bad Request\"}") == 0,
+    check(strcmp(response.body, "{\"status\": 400, \"message\": \"Bad Request\"}") == 0,
           "dispatch: response body format");
-    check(response.body_length == strlen(response.body),
-          "dispatch: body_length tracks body");
+    check(response.body_length == strlen(response.body), "dispatch: body_length tracks body");
 }
 
 /* ---------- mock Telegram server (one connection per child) ---------- */
 
-static void mock_telegram_run(int port, int status_code,
-                              const char *response_body) {
+static void mock_telegram_run(int port, int status_code, const char* response_body) {
     /* Never outlive the test run: if nothing connects we exit instead of
      * blocking the parent's waitpid() forever. */
     alarm(10);
@@ -335,7 +306,7 @@ static void mock_telegram_run(int port, int status_code,
     addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
     addr.sin_port = htons((unsigned short)port);
 
-    if (bind(server_fd, (struct sockaddr *)&addr, sizeof(addr)) < 0)
+    if (bind(server_fd, (struct sockaddr*)&addr, sizeof(addr)) < 0)
         _exit(1);
     if (listen(server_fd, 1) < 0)
         _exit(1);
@@ -346,7 +317,7 @@ static void mock_telegram_run(int port, int status_code,
 
     char buf[8192];
     size_t total = 0;
-    char *header_end = NULL;
+    char* header_end = NULL;
     while (total < sizeof(buf) - 1) {
         ssize_t n = recv(client_fd, buf + total, sizeof(buf) - 1 - total, 0);
         if (n <= 0)
@@ -361,19 +332,17 @@ static void mock_telegram_run(int port, int status_code,
     /* Optionally capture the request body (Content-Length framed) so tests can
      * assert what the service sent to Telegram/the download-service. */
     long content_length = 0;
-    const char *cl = strstr(buf, "Content-Length: ");
+    const char* cl = strstr(buf, "Content-Length: ");
     if (cl)
         content_length = strtol(cl + 16, NULL, 10);
 
-    const char *body_start = header_end ? header_end + 4 : NULL;
+    const char* body_start = header_end ? header_end + 4 : NULL;
     size_t body_have =
-        body_start && body_start < buf + total
-            ? (size_t)(buf + total - body_start)
-            : 0;
+        body_start && body_start < buf + total ? (size_t)(buf + total - body_start) : 0;
 
-    const char *body_file = getenv("TELEGRAM_TEST_BODY_FILE");
+    const char* body_file = getenv("TELEGRAM_TEST_BODY_FILE");
     if (body_file && body_file[0]) {
-        FILE *f = fopen(body_file, "w");
+        FILE* f = fopen(body_file, "w");
         if (f) {
             size_t written = 0;
             if (body_have > 0)
@@ -398,8 +367,8 @@ static void mock_telegram_run(int port, int status_code,
                        "Connection: close\r\n"
                        "\r\n"
                        "%s",
-                       status_code, status_code == 200 ? "OK" : "Error",
-                       strlen(response_body), response_body);
+                       status_code, status_code == 200 ? "OK" : "Error", strlen(response_body),
+                       response_body);
     if (len > 0)
         send(client_fd, response, (size_t)len, MSG_NOSIGNAL);
 
@@ -408,7 +377,7 @@ static void mock_telegram_run(int port, int status_code,
 }
 
 /* Start a one-shot mock Telegram server; returns its pid. */
-static pid_t spawn_mock_telegram(int status_code, const char *response_body) {
+static pid_t spawn_mock_telegram(int status_code, const char* response_body) {
     fflush(stdout);
     pid_t pid = fork();
     if (pid == 0) {
@@ -422,8 +391,7 @@ static pid_t spawn_mock_telegram(int status_code, const char *response_body) {
 /* One-shot mock download-service: POST /download -> status/body. */
 #define MOCK_DOWNLOAD_PORT 18940
 
-static void mock_download_run(int port, int status_code,
-                              const char *response_body) {
+static void mock_download_run(int port, int status_code, const char* response_body) {
     alarm(10);
 
     int server_fd = socket(AF_INET, SOCK_STREAM, 0);
@@ -436,8 +404,7 @@ static void mock_download_run(int port, int status_code,
     addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
     addr.sin_port = htons((unsigned short)port);
-    if (bind(server_fd, (struct sockaddr *)&addr, sizeof(addr)) < 0 ||
-        listen(server_fd, 1) < 0) {
+    if (bind(server_fd, (struct sockaddr*)&addr, sizeof(addr)) < 0 || listen(server_fd, 1) < 0) {
         close(server_fd);
         _exit(1);
     }
@@ -450,7 +417,7 @@ static void mock_download_run(int port, int status_code,
 
     char buf[8192];
     size_t total = 0;
-    char *header_end = NULL;
+    char* header_end = NULL;
     while (total < sizeof(buf) - 1) {
         ssize_t n = recv(client_fd, buf + total, sizeof(buf) - 1 - total, 0);
         if (n <= 0)
@@ -465,19 +432,17 @@ static void mock_download_run(int port, int status_code,
     /* Optionally capture the request body (Content-Length framed) so tests can
      * assert what the service sent to Telegram/the download-service. */
     long content_length = 0;
-    const char *cl = strstr(buf, "Content-Length: ");
+    const char* cl = strstr(buf, "Content-Length: ");
     if (cl)
         content_length = strtol(cl + 16, NULL, 10);
 
-    const char *body_start = header_end ? header_end + 4 : NULL;
+    const char* body_start = header_end ? header_end + 4 : NULL;
     size_t body_have =
-        body_start && body_start < buf + total
-            ? (size_t)(buf + total - body_start)
-            : 0;
+        body_start && body_start < buf + total ? (size_t)(buf + total - body_start) : 0;
 
-    const char *body_file = getenv("TELEGRAM_TEST_BODY_FILE");
+    const char* body_file = getenv("TELEGRAM_TEST_BODY_FILE");
     if (body_file && body_file[0]) {
-        FILE *f = fopen(body_file, "w");
+        FILE* f = fopen(body_file, "w");
         if (f) {
             size_t written = 0;
             if (body_have > 0)
@@ -502,9 +467,8 @@ static void mock_download_run(int port, int status_code,
                        "Connection: close\r\n"
                        "\r\n"
                        "%s",
-                       status_code,
-                       status_code == 200 ? "OK" : "Error",
-                       strlen(response_body), response_body);
+                       status_code, status_code == 200 ? "OK" : "Error", strlen(response_body),
+                       response_body);
     if (len > 0)
         send(client_fd, response, (size_t)len, MSG_NOSIGNAL);
 
@@ -513,7 +477,7 @@ static void mock_download_run(int port, int status_code,
     _exit(0);
 }
 
-static pid_t spawn_mock_download(int status_code, const char *response_body) {
+static pid_t spawn_mock_download(int status_code, const char* response_body) {
     fflush(stdout);
     pid_t pid = fork();
     if (pid == 0) {
@@ -529,8 +493,8 @@ static pid_t spawn_mock_download(int status_code, const char *response_body) {
  * /webhook with mock download-service and mock Telegram servers.
  */
 
-static void dispatch_webhook(const server_config_t *config, const char *body,
-                             http_response_t *response) {
+static void dispatch_webhook(const server_config_t* config, const char* body,
+                             http_response_t* response) {
     char headers[512];
     snprintf(headers, sizeof(headers),
              "POST /webhook HTTP/1.1\r\n"
@@ -559,17 +523,14 @@ static void test_webhook(void) {
     dispatch_raw(&config, "POST /webhook-other HTTP/1.1\r\n\r\n", "", &response);
     check(response.status_code == 404, "webhook: unknown path is 404");
 
-    dispatch_raw(&config, "POST /webhook HTTP/1.1\r\nContent-Length: 5\r\n\r\n",
-                 "not json", &response);
+    dispatch_raw(&config, "POST /webhook HTTP/1.1\r\nContent-Length: 5\r\n\r\n", "not json",
+                 &response);
     check(response.status_code == 400, "webhook: invalid JSON is 400");
 
     /* Valid JSON but not a Telegram message with text -> 400. */
-    dispatch_raw(&config,
-                 "POST /webhook HTTP/1.1\r\nContent-Length: 18\r\n\r\n",
-                 "{\"update_id\": 1}",
-                 &response);
-    check(response.status_code == 400,
-          "webhook: update without message text is 400");
+    dispatch_raw(&config, "POST /webhook HTTP/1.1\r\nContent-Length: 18\r\n\r\n",
+                 "{\"update_id\": 1}", &response);
+    check(response.status_code == 400, "webhook: update without message text is 400");
 
     /* --- happy path: download accepted, mapping recorded --- */
 
@@ -581,8 +542,7 @@ static void test_webhook(void) {
                      "\"text\":\"/download https://youtu.be/xyz\"}}",
                      &response);
     check(response.status_code == 200, "webhook: accepted download is 200");
-    check(jobmap_get("wh-job-1") == 42,
-          "webhook: job_id -> chat_id mapping recorded");
+    check(jobmap_get("wh-job-1") == 42, "webhook: job_id -> chat_id mapping recorded");
 
     waitpid(mock_dl, NULL, 0);
     waitpid(mock_tg, NULL, 0);
@@ -597,8 +557,7 @@ static void test_webhook(void) {
                      "\"text\":\"/download https://vimeo.com/123\"}}",
                      &response);
     check(response.status_code == 200, "webhook: unsupported domain is 200");
-    check(jobmap_get("wh-job-1") == 42,
-          "webhook: rejected download does not clobber mapping");
+    check(jobmap_get("wh-job-1") == 42, "webhook: rejected download does not clobber mapping");
 
     waitpid(mock_dl, NULL, 0);
     waitpid(mock_tg, NULL, 0);
@@ -606,8 +565,8 @@ static void test_webhook(void) {
 
 /* ---------- callback dispatch tests ---------- */
 
-static void dispatch_callback(const server_config_t *config, const char *body,
-                              http_response_t *response) {
+static void dispatch_callback(const server_config_t* config, const char* body,
+                              http_response_t* response) {
     char headers[512];
     snprintf(headers, sizeof(headers),
              "POST /callback/download HTTP/1.1\r\n"
@@ -630,19 +589,14 @@ static void test_callback(void) {
 
     /* --- routing errors (no network needed) --- */
 
-    dispatch_raw(&config, "GET /callback/download HTTP/1.1\r\n\r\n", "",
-                 &response);
-    check(response.status_code == 405,
-          "callback: GET /callback/download is 405");
+    dispatch_raw(&config, "GET /callback/download HTTP/1.1\r\n\r\n", "", &response);
+    check(response.status_code == 405, "callback: GET /callback/download is 405");
 
-    dispatch_raw(&config, "POST /callback-other HTTP/1.1\r\n\r\n", "",
-                 &response);
+    dispatch_raw(&config, "POST /callback-other HTTP/1.1\r\n\r\n", "", &response);
     check(response.status_code == 404, "callback: unknown path is 404");
 
-    dispatch_raw(&config, "POST /callback/download HTTP/1.1\r\n\r\n", "",
-                 &response);
-    check(response.status_code == 411,
-          "callback: missing Content-Length is 411");
+    dispatch_raw(&config, "POST /callback/download HTTP/1.1\r\n\r\n", "", &response);
+    check(response.status_code == 411, "callback: missing Content-Length is 411");
 
     /* --- malformed or incomplete payloads --- */
 
@@ -653,11 +607,10 @@ static void test_callback(void) {
     check(response.status_code == 400, "callback: missing job_id is 400");
 
     /* job not tracked -> rejected before any delivery attempt */
-    dispatch_callback(
-        &config,
-        "{\"job_id\": \"cb-unknown\", \"chat_id\": 42, "
-        "\"status\": \"completed\", \"file_path\": \"/data/x.mp4\"}",
-        &response);
+    dispatch_callback(&config,
+                      "{\"job_id\": \"cb-unknown\", \"chat_id\": 42, "
+                      "\"status\": \"completed\", \"file_path\": \"/data/x.mp4\"}",
+                      &response);
     check(response.status_code == 400, "callback: unknown job is 400");
     check(jobmap_get("cb-unknown") == 0, "callback: unknown job not tracked");
 
@@ -668,21 +621,18 @@ static void test_callback(void) {
 
     /* completed: file path delivered, mapping removed */
     {
-        setenv("TELEGRAM_TEST_BODY_FILE", "/tmp/opencode/telegram_body_ok.txt",
-               1);
+        setenv("TELEGRAM_TEST_BODY_FILE", "/tmp/opencode/telegram_body_ok.txt", 1);
         pid_t mock = spawn_mock_telegram(200, "{\"ok\": true}");
-        dispatch_callback(
-            &config,
-            "{\"job_id\": \"cb-job-ok\", \"chat_id\": 42, "
-            "\"status\": \"completed\", \"file_path\": "
-            "\"/data/downloads/abc123.mp4\"}",
-            &response);
+        dispatch_callback(&config,
+                          "{\"job_id\": \"cb-job-ok\", \"chat_id\": 42, "
+                          "\"status\": \"completed\", \"file_path\": "
+                          "\"/data/downloads/abc123.mp4\"}",
+                          &response);
         check(response.status_code == 200, "callback: completed is 200");
-        check(jobmap_get("cb-job-ok") == 0,
-              "callback: completed job removed from map");
+        check(jobmap_get("cb-job-ok") == 0, "callback: completed job removed from map");
         waitpid(mock, NULL, 0);
 
-        FILE *f = fopen("/tmp/opencode/telegram_body_ok.txt", "r");
+        FILE* f = fopen("/tmp/opencode/telegram_body_ok.txt", "r");
         check(f != NULL, "callback: telegram request captured");
         if (f) {
             size_t n = fread(body, 1, sizeof(body) - 1, f);
@@ -690,8 +640,7 @@ static void test_callback(void) {
             fclose(f);
             check(strstr(body, "\"chat_id\": \"42\"") != NULL,
                   "callback: delivered to the mapped chat");
-            check(strstr(body, "Download complete") != NULL,
-                  "callback: success text delivered");
+            check(strstr(body, "Download complete") != NULL, "callback: success text delivered");
             check(strstr(body, "/data/downloads/abc123.mp4") != NULL,
                   "callback: file path delivered");
         }
@@ -699,29 +648,24 @@ static void test_callback(void) {
 
     /* failed: error message delivered, mapping removed */
     {
-        setenv("TELEGRAM_TEST_BODY_FILE",
-               "/tmp/opencode/telegram_body_fail.txt", 1);
+        setenv("TELEGRAM_TEST_BODY_FILE", "/tmp/opencode/telegram_body_fail.txt", 1);
         pid_t mock = spawn_mock_telegram(200, "{\"ok\": true}");
-        dispatch_callback(
-            &config,
-            "{\"job_id\": \"cb-job-fail\", \"chat_id\": 42, "
-            "\"status\": \"failed\", \"error\": \"yt-dlp exited 1\"}",
-            &response);
+        dispatch_callback(&config,
+                          "{\"job_id\": \"cb-job-fail\", \"chat_id\": 42, "
+                          "\"status\": \"failed\", \"error\": \"yt-dlp exited 1\"}",
+                          &response);
         check(response.status_code == 200, "callback: failed is 200");
-        check(jobmap_get("cb-job-fail") == 0,
-              "callback: failed job removed from map");
+        check(jobmap_get("cb-job-fail") == 0, "callback: failed job removed from map");
         waitpid(mock, NULL, 0);
 
-        FILE *f = fopen("/tmp/opencode/telegram_body_fail.txt", "r");
+        FILE* f = fopen("/tmp/opencode/telegram_body_fail.txt", "r");
         check(f != NULL, "callback: telegram request captured");
         if (f) {
             size_t n = fread(body, 1, sizeof(body) - 1, f);
             body[n] = '\0';
             fclose(f);
-            check(strstr(body, "Download failed") != NULL,
-                  "callback: failure text delivered");
-            check(strstr(body, "yt-dlp exited 1") != NULL,
-                  "callback: error message delivered");
+            check(strstr(body, "Download failed") != NULL, "callback: failure text delivered");
+            check(strstr(body, "yt-dlp exited 1") != NULL, "callback: error message delivered");
         }
     }
 
@@ -729,21 +673,18 @@ static void test_callback(void) {
 
     jobmap_put("cb-job-down", 42);
     /* No mock is listening on 18932 now: telegram is unreachable. */
-    dispatch_callback(
-        &config,
-        "{\"job_id\": \"cb-job-down\", \"chat_id\": 42, "
-        "\"status\": \"completed\", \"file_path\": \"/data/x.mp4\"}",
-        &response);
+    dispatch_callback(&config,
+                      "{\"job_id\": \"cb-job-down\", \"chat_id\": 42, "
+                      "\"status\": \"completed\", \"file_path\": \"/data/x.mp4\"}",
+                      &response);
     check(response.status_code == 200, "callback: unreachable telegram is 200");
-    check(jobmap_get("cb-job-down") == 0,
-          "callback: job removed despite delivery failure");
+    check(jobmap_get("cb-job-down") == 0, "callback: job removed despite delivery failure");
 }
 
 /* ---------- end-to-end helpers ---------- */
 
-static ssize_t http_exchange(unsigned short port, const char *request,
-                             size_t request_len, char *resp_out,
-                             size_t resp_cap) {
+static ssize_t http_exchange(unsigned short port, const char* request, size_t request_len,
+                             char* resp_out, size_t resp_cap) {
     int fd = socket(AF_INET, SOCK_STREAM, 0);
     if (fd < 0)
         return -1;
@@ -754,7 +695,7 @@ static ssize_t http_exchange(unsigned short port, const char *request,
     addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
     addr.sin_port = htons(port);
 
-    if (connect(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+    if (connect(fd, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
         close(fd);
         return -1;
     }
@@ -782,7 +723,7 @@ static ssize_t http_exchange(unsigned short port, const char *request,
     return (ssize_t)total;
 }
 
-static int response_status(const char *resp) {
+static int response_status(const char* resp) {
     if (strncmp(resp, "HTTP/1.1 ", 9) != 0)
         return -1;
     return atoi(resp + 9);
@@ -790,7 +731,7 @@ static int response_status(const char *resp) {
 
 /* Single-shot exchange that reports what actually came back.
  * Returns the HTTP status, or -1 if the server closed without responding. */
-static int exchange(const char *request, size_t len, char *resp, size_t cap) {
+static int exchange(const char* request, size_t len, char* resp, size_t cap) {
     ssize_t n = http_exchange(SERVER_PORT, request, len, resp, cap);
     if (n <= 0) {
         if (errors < 20)
@@ -798,19 +739,17 @@ static int exchange(const char *request, size_t len, char *resp, size_t cap) {
         return -1;
     }
     int status = response_status(resp);
-    const char *body = strstr(resp, "\r\n\r\n");
+    const char* body = strstr(resp, "\r\n\r\n");
     if (errors < 20) {
-        printf("   [diag] status=%d body=<<%s>>\n", status,
-               body ? body + 4 : "(none)");
+        printf("   [diag] status=%d body=<<%s>>\n", status, body ? body + 4 : "(none)");
     }
     return status;
 }
 
 /* Same as http_exchange but pauses between the header and body writes so the
  * server genuinely needs multiple recv() calls to frame the request. */
-static ssize_t http_exchange_split(unsigned short port, const char *part1,
-                                   size_t part1_len, const char *part2,
-                                   size_t part2_len, char *resp_out,
+static ssize_t http_exchange_split(unsigned short port, const char* part1, size_t part1_len,
+                                   const char* part2, size_t part2_len, char* resp_out,
                                    size_t resp_cap) {
     int fd = socket(AF_INET, SOCK_STREAM, 0);
     if (fd < 0)
@@ -822,7 +761,7 @@ static ssize_t http_exchange_split(unsigned short port, const char *part1,
     addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
     addr.sin_port = htons(port);
 
-    if (connect(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+    if (connect(fd, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
         close(fd);
         return -1;
     }
@@ -832,8 +771,7 @@ static ssize_t http_exchange_split(unsigned short port, const char *part1,
         return -1;
     }
     sleep_ms(80);
-    if (part2_len > 0 &&
-        send(fd, part2, part2_len, MSG_NOSIGNAL) != (ssize_t)part2_len) {
+    if (part2_len > 0 && send(fd, part2, part2_len, MSG_NOSIGNAL) != (ssize_t)part2_len) {
         close(fd);
         return -1;
     }
@@ -853,21 +791,18 @@ static ssize_t http_exchange_split(unsigned short port, const char *part1,
 
 /* Same as exchange, but pauses between the two writes so the server must use
  * several recv() calls to frame the request. */
-static int exchange_split(const char *part1, size_t part1_len,
-                          const char *part2, size_t part2_len, char *resp,
-                          size_t cap) {
-    ssize_t n = http_exchange_split(SERVER_PORT, part1, part1_len, part2,
-                                    part2_len, resp, cap);
+static int exchange_split(const char* part1, size_t part1_len, const char* part2, size_t part2_len,
+                          char* resp, size_t cap) {
+    ssize_t n = http_exchange_split(SERVER_PORT, part1, part1_len, part2, part2_len, resp, cap);
     if (n <= 0) {
         if (errors < 20)
             printf("   [diag] no response (recv=%zd)\n", n);
         return -1;
     }
     int status = response_status(resp);
-    const char *body = strstr(resp, "\r\n\r\n");
+    const char* body = strstr(resp, "\r\n\r\n");
     if (errors < 20) {
-        printf("   [diag] status=%d body=<<%s>>\n", status,
-               body ? body + 4 : "(none)");
+        printf("   [diag] status=%d body=<<%s>>\n", status, body ? body + 4 : "(none)");
     }
     return status;
 }
@@ -929,23 +864,19 @@ static void test_end_to_end(void) {
     check(status == 200, "e2e: happy path is 200");
     check(strstr(response, "\"status\": 200") != NULL, "e2e: 200 body");
     /* {"status": 200, "message": "OK"} is 32 bytes */
-    check(strstr(response, "Content-Length: 32") != NULL,
-          "e2e: Content-Length matches body size");
-    check(strstr(response, "Connection: close") != NULL,
-          "e2e: Connection: close advertised");
+    check(strstr(response, "Content-Length: 32") != NULL, "e2e: Content-Length matches body size");
+    check(strstr(response, "Connection: close") != NULL, "e2e: Connection: close advertised");
     int child_status;
     waitpid(mock, &child_status, 0);
 
     /* --- Telegram error codes are proxied verbatim --- */
 
-    mock = spawn_mock_telegram(
-        429, "{\"ok\":false,\"description\":\"Too Many Requests\"}");
+    mock = spawn_mock_telegram(429, "{\"ok\":false,\"description\":\"Too Many Requests\"}");
     status = exchange(request, (size_t)len, response, sizeof(response));
     check(status == 429, "e2e: Telegram 429 proxied");
     waitpid(mock, &child_status, 0);
 
-    mock = spawn_mock_telegram(
-        401, "{\"ok\":false,\"description\":\"Unauthorized\"}");
+    mock = spawn_mock_telegram(401, "{\"ok\":false,\"description\":\"Unauthorized\"}");
     status = exchange(request, (size_t)len, response, sizeof(response));
     check(status == 401, "e2e: Telegram 401 proxied");
     waitpid(mock, &child_status, 0);
@@ -1017,16 +948,13 @@ static void test_end_to_end(void) {
 
     /* A body of exactly MAX_HTTP_BODY bytes is accepted by the framing layer */
     {
-        const char *head =
-            "POST /notifications HTTP/1.1\r\nContent-Length: 16384\r\n\r\n";
+        const char* head = "POST /notifications HTTP/1.1\r\nContent-Length: 16384\r\n\r\n";
         char big[MAX_HTTP_BODY + 64];
         size_t head_len = strlen(head);
         memcpy(big, head, head_len);
         memset(big + head_len, 'x', MAX_HTTP_BODY);
-        status =
-            exchange(big, head_len + MAX_HTTP_BODY, response, sizeof(response));
-        check(status == 400,
-              "e2e: max-size body reaches the JSON parser (400 for bad JSON)");
+        status = exchange(big, head_len + MAX_HTTP_BODY, response, sizeof(response));
+        check(status == 400, "e2e: max-size body reaches the JSON parser (400 for bad JSON)");
     }
 
     /* --- oversized headers --- */
@@ -1061,13 +989,12 @@ static void test_end_to_end(void) {
 
     mock = spawn_mock_telegram(200, "{\"ok\":true}");
     {
-        const char *head = "POST /notifications HTTP/1.1\r\n"
+        const char* head = "POST /notifications HTTP/1.1\r\n"
                            "Content-Type: application/json\r\n"
                            "Content-Length: 19\r\n"
                            "\r\n";
-        const char *body = "{\"message\":\"hello\"}";
-        status = exchange_split(head, strlen(head), body, strlen(body),
-                                response, sizeof(response));
+        const char* body = "{\"message\":\"hello\"}";
+        status = exchange_split(head, strlen(head), body, strlen(body), response, sizeof(response));
         check(status == 200, "e2e: headers and body split across segments");
     }
     waitpid(mock, &child_status, 0);
@@ -1076,11 +1003,11 @@ static void test_end_to_end(void) {
 
     mock = spawn_mock_telegram(200, "{\"ok\":true}");
     {
-        const char *part1 = "POST /notif";
-        const char *part2 = "ications HTTP/1.1\r\nContent-Length: 19\r\n\r\n"
+        const char* part1 = "POST /notif";
+        const char* part2 = "ications HTTP/1.1\r\nContent-Length: 19\r\n\r\n"
                             "{\"message\":\"hello\"}";
-        status = exchange_split(part1, strlen(part1), part2, strlen(part2),
-                                response, sizeof(response));
+        status =
+            exchange_split(part1, strlen(part1), part2, strlen(part2), response, sizeof(response));
         check(status == 200, "e2e: request line split mid-token");
     }
     waitpid(mock, &child_status, 0);
@@ -1096,8 +1023,7 @@ static void test_end_to_end(void) {
         addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
         addr.sin_port = htons(SERVER_PORT);
 
-        bool connected =
-            fd >= 0 && connect(fd, (struct sockaddr *)&addr, sizeof(addr)) == 0;
+        bool connected = fd >= 0 && connect(fd, (struct sockaddr*)&addr, sizeof(addr)) == 0;
         check(connected, "e2e: slow client connects");
 
         if (connected) {
@@ -1114,12 +1040,11 @@ static void test_end_to_end(void) {
             ssize_t n = recv(fd, drain, sizeof(drain), 0);
             gettimeofday(&end, NULL);
 
-            double elapsed = (double)(end.tv_sec - start.tv_sec) +
-                             (double)(end.tv_usec - start.tv_usec) / 1e6;
+            double elapsed =
+                (double)(end.tv_sec - start.tv_sec) + (double)(end.tv_usec - start.tv_usec) / 1e6;
             printf("   [diag] slow client dropped after %.1fs\n", elapsed);
             check(n <= 0, "e2e: stalled connection is closed by the server");
-            check(elapsed >= 4.0 && elapsed < 9.0,
-                  "e2e: close happens near SOCKET_TIMEOUT_SEC");
+            check(elapsed >= 4.0 && elapsed < 9.0, "e2e: close happens near SOCKET_TIMEOUT_SEC");
         }
         if (fd >= 0)
             close(fd);
@@ -1144,8 +1069,7 @@ static void test_end_to_end(void) {
           "e2e: SIGTERM shuts down cleanly");
 
     /* Server is gone: a new connection must be refused */
-    check(http_exchange(SERVER_PORT, request, 10, response, sizeof(response)) ==
-              -1,
+    check(http_exchange(SERVER_PORT, request, 10, response, sizeof(response)) == -1,
           "e2e: socket released after shutdown");
 }
 

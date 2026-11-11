@@ -15,7 +15,7 @@
  * disabled (no credentials, or a mint failure). The returned pointer stays
  * valid until the next twitch_auth_invalidate().
  */
-const char *twitch_auth_token(void);
+const char* twitch_auth_token(void);
 
 /* Drop the cached token so the next call re-mints (used after HTTP 401). */
 void twitch_auth_invalidate(void);
@@ -24,6 +24,6 @@ void twitch_auth_invalidate(void);
 void twitch_auth_init_from_env(void);
 
 /* The configured client id ("" if unset); probe.c uses it for the API header. */
-const char *twitch_auth_client_id(void);
+const char* twitch_auth_client_id(void);
 
 #endif /* TWITCH_AUTH_H */

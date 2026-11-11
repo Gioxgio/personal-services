@@ -5,19 +5,15 @@
  */
 
 #include "harness.h"
-
 #include "urlparse.h"
 
-static void check_channel(const channel_t *ch, source_t src,
-                            const char *slug, const char *url)
-{
+static void check_channel(const channel_t* ch, source_t src, const char* slug, const char* url) {
     CHECK(ch->src == src);
     CHECK_STR_EQ(ch->slug, slug);
     CHECK_STR_EQ(ch->url, url);
 }
 
-int main(void)
-{
+int main(void) {
     channel_t ch;
 
     /* --- the four documented forms --- */
@@ -31,8 +27,7 @@ int main(void)
     channel_free(&ch);
 
     CHECK(channel_parse("youtube: @pokimanel", &ch));
-    check_channel(&ch, SRC_YOUTUBE, "_pokimanel",
-                  "https://www.youtube.com/@pokimanel");
+    check_channel(&ch, SRC_YOUTUBE, "_pokimanel", "https://www.youtube.com/@pokimanel");
     channel_free(&ch);
 
     /* A bare UC… channel id becomes /channel/<id>. */
@@ -48,8 +43,7 @@ int main(void)
     channel_free(&ch);
 
     CHECK(channel_parse("https://www.youtube.com/@pokimanel", &ch));
-    check_channel(&ch, SRC_YOUTUBE, "_pokimanel",
-                  "https://www.youtube.com/@pokimanel");
+    check_channel(&ch, SRC_YOUTUBE, "_pokimanel", "https://www.youtube.com/@pokimanel");
     channel_free(&ch);
 
     /* A bare name with no URL at all defaults to Twitch. */
@@ -66,8 +60,7 @@ int main(void)
 
     /* YouTube handles keep their case. */
     CHECK(channel_parse("youtube: @Pokimanel", &ch));
-    check_channel(&ch, SRC_YOUTUBE, "_Pokimanel",
-                  "https://www.youtube.com/@Pokimanel");
+    check_channel(&ch, SRC_YOUTUBE, "_Pokimanel", "https://www.youtube.com/@Pokimanel");
     channel_free(&ch);
 
     /* Trailing whitespace never reaches the slug. */
@@ -86,8 +79,7 @@ int main(void)
     channel_free(&ch);
 
     CHECK(channel_parse("youtube: https://www.youtube.com/@handle?x=1", &ch));
-    check_channel(&ch, SRC_YOUTUBE, "_handle",
-                  "https://www.youtube.com/@handle");
+    check_channel(&ch, SRC_YOUTUBE, "_handle", "https://www.youtube.com/@handle");
     channel_free(&ch);
 
     /* --- malformed input: rejected, owning nothing --- */

@@ -13,8 +13,8 @@ RUN make -j"$(nproc)"
 FROM debian:bookworm-slim AS download-service
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl ffmpeg && rm -rf /var/lib/apt/lists/* \
  && curl -fsSL -o /usr/local/bin/yt-dlp https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp && chmod a+rx /usr/local/bin/yt-dlp \
- && mkdir -p /var/lib/download-service && chown -R download:download /var/lib/download-service \
- && useradd --system --home-dir /nonexistent --shell /usr/sbin/nologin download || true
+ && useradd --system --home-dir /nonexistent --shell /usr/sbin/nologin download || true \
+ && mkdir -p /var/lib/download-service && chown -R download:download /var/lib/download-service
 WORKDIR /var/lib/download-service
 COPY --from=download-builder /src/build/download-service /usr/local/bin/download-service
 ENV PORT=8080 DOWNLOAD_STORAGE_PATH=/var/lib/download-service YTDLP_PATH=/usr/local/bin/yt-dlp CALLBACK_URL=http://notification-service:8080/callback/download
@@ -26,14 +26,16 @@ ENTRYPOINT ["download-service"]
 FROM debian:bookworm-slim AS notification-builder
 RUN apt-get update && apt-get install -y --no-install-recommends build-essential libcurl4-openssl-dev && rm -rf /var/lib/apt/lists/*
 WORKDIR /src
-COPY notification-service /src
+COPY notification-service /src/notification-service
+COPY modules /src/modules
+WORKDIR /src/notification-service
 RUN make -j"$(nproc)"
 
 FROM debian:bookworm-slim AS notification-service
 RUN apt-get update && apt-get install -y --no-install-recommends libcurl4 ca-certificates && rm -rf /var/lib/apt/lists/* \
  && useradd --system --home-dir /nonexistent --shell /usr/sbin/nologin notification
 WORKDIR /src
-COPY --from=notification-builder /src/build/notification-service /usr/local/bin/notification-service
+COPY --from=notification-builder /src/notification-service/build/notification-service /usr/local/bin/notification-service
 ENV PORT=8080
 EXPOSE 8080
 USER notification
@@ -43,7 +45,9 @@ ENTRYPOINT ["notification-service"]
 FROM alpine:3.24 AS stream-sniper-builder
 RUN apk add --no-cache build-base pkgconf curl-dev
 WORKDIR /src
-COPY stream-sniper /src
+COPY stream-sniper /src/stream-sniper
+COPY modules /src/modules
+WORKDIR /src/stream-sniper
 RUN make && make install PREFIX=/usr/local
 
 FROM alpine:3.24 AS stream-sniper

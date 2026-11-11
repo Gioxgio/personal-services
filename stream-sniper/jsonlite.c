@@ -12,11 +12,9 @@
  * key must be closed, colon-separated, and value-opened by a
  * quote.
  */
-static const char *value_at(const char *json, const char *from,
-                            const char *key)
-{
+static const char* value_at(const char* json, const char* from, const char* key) {
     size_t klen = strlen(key);
-    const char *p = from;
+    const char* p = from;
 
     while ((p = strstr(p, key)) != NULL) {
         /*
@@ -25,21 +23,18 @@ static const char *value_at(const char *json, const char *from,
          * closed by a quote, which guarantees they are part of
          * the string (at worst its terminator).
          */
-        if (p > json && p[-1] == '"' &&
-            p[klen] == '"' && p[klen + 1] == ':' && p[klen + 2] == '"')
+        if (p > json && p[-1] == '"' && p[klen] == '"' && p[klen + 1] == ':' && p[klen + 2] == '"')
             return p + klen + 3;
         p++;
     }
     return NULL;
 }
 
-size_t json_find_string(const char *json, const char *key,
-                        char *out, size_t outsz)
-{
+size_t json_find_string(const char* json, const char* key, char* out, size_t outsz) {
     if (!json || !key || !*key || !out || outsz == 0)
         return 0;
 
-    const char *v = value_at(json, json, key);
+    const char* v = value_at(json, json, key);
     if (!v)
         return 0;
 
@@ -50,17 +45,15 @@ size_t json_find_string(const char *json, const char *key,
     return i;
 }
 
-size_t json_collect_strings(const char *json, const char *key,
-                            char out[][32], size_t max)
-{
+size_t json_collect_strings(const char* json, const char* key, char out[][32], size_t max) {
     if (!json || !key || !*key || !out || max == 0)
         return 0;
 
     size_t n = 0;
-    const char *p = json;
+    const char* p = json;
 
     while (n < max) {
-        const char *v = value_at(json, p, key);
+        const char* v = value_at(json, p, key);
         if (!v)
             break;
 

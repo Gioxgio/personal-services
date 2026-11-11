@@ -4,15 +4,15 @@
 
 #include "allowlist.h"
 
-#include <strings.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 
 /*
  * Split `spec` on commas (whitespace around entries is trimmed, empty entries
  * ignored) and duplicate every entry into `list`. Returns true on success.
  */
-bool allowlist_parse(const char *spec, allowlist_t *list) {
+bool allowlist_parse(const char* spec, allowlist_t* list) {
     if (!list)
         return false;
 
@@ -22,14 +22,14 @@ bool allowlist_parse(const char *spec, allowlist_t *list) {
     if (!spec || spec[0] == '\0')
         return true; /* empty allowlist */
 
-    char *copy = strdup(spec);
+    char* copy = strdup(spec);
     if (!copy)
         return false;
 
     /* First pass: count the non-empty entries. */
     int count = 0;
-    char *save = NULL;
-    for (char *tok = strtok_r(copy, ",\t\r\n ", &save); tok;
+    char* save = NULL;
+    for (char* tok = strtok_r(copy, ",\t\r\n ", &save); tok;
          tok = strtok_r(NULL, ",\t\r\n ", &save)) {
         count++;
     }
@@ -39,8 +39,7 @@ bool allowlist_parse(const char *spec, allowlist_t *list) {
         return true;
     }
 
-    char **domains =
-        calloc((size_t)count + 1, sizeof(char *)); /* +1 for a NUL sentinel */
+    char** domains = calloc((size_t)count + 1, sizeof(char*)); /* +1 for a NUL sentinel */
     if (!domains) {
         free(copy);
         return false;
@@ -57,7 +56,7 @@ bool allowlist_parse(const char *spec, allowlist_t *list) {
     bool ok = true;
     int n = 0;
     save = NULL;
-    for (char *tok = strtok_r(copy, ",\t\r\n ", &save); tok;
+    for (char* tok = strtok_r(copy, ",\t\r\n ", &save); tok;
          tok = strtok_r(NULL, ",\t\r\n ", &save)) {
         domains[n] = strdup(tok);
         if (!domains[n]) {
@@ -84,7 +83,7 @@ bool allowlist_parse(const char *spec, allowlist_t *list) {
     return true;
 }
 
-void allowlist_free(allowlist_t *list) {
+void allowlist_free(allowlist_t* list) {
     if (!list || !list->domains)
         return;
     for (size_t i = 0; i < list->count; i++)
@@ -99,13 +98,13 @@ void allowlist_free(allowlist_t *list) {
  * optional "scheme://" and before the first port, path, query or fragment.
  * Returns the host length, or -1 when there is no usable host.
  */
-static int extract_host(const char *url, char *out, size_t cap) {
-    const char *start = url;
-    const char *scheme = strstr(url, "://");
+static int extract_host(const char* url, char* out, size_t cap) {
+    const char* start = url;
+    const char* scheme = strstr(url, "://");
     if (scheme)
         start = scheme + 3;
 
-    const char *end = start;
+    const char* end = start;
     while (*end && *end != '/' && *end != '?' && *end != '#' && *end != ':')
         end++;
 
@@ -118,7 +117,7 @@ static int extract_host(const char *url, char *out, size_t cap) {
 }
 
 /* True when `host` equals `domain` or is a subdomain of it (dot-prefixed). */
-static bool host_matches_domain(const char *host, const char *domain) {
+static bool host_matches_domain(const char* host, const char* domain) {
     if (strcasecmp(host, domain) == 0)
         return true;
 
@@ -131,7 +130,7 @@ static bool host_matches_domain(const char *host, const char *domain) {
     return strcasecmp(host + hlen - dlen, domain) == 0;
 }
 
-bool is_supported(const char *url, const allowlist_t *list) {
+bool is_supported(const char* url, const allowlist_t* list) {
     if (!url || !list || !list->domains)
         return false;
 

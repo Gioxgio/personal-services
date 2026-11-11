@@ -9,7 +9,7 @@
 #include <string.h>
 
 typedef struct {
-    char job_id[37];   /* uuid + NUL */
+    char job_id[37]; /* uuid + NUL */
     int64_t chat_id;
     bool used;
 } jobmap_entry_t;
@@ -22,7 +22,7 @@ static pthread_mutex_t g_lock = PTHREAD_MUTEX_INITIALIZER;
  * first free slot index with *found clear, or JOBMAP_CAPACITY when the map is
  * full.
  */
-static size_t find_slot(const char *job_id, bool *found) {
+static size_t find_slot(const char* job_id, bool* found) {
     *found = false;
     size_t first_free = JOBMAP_CAPACITY;
     for (size_t i = 0; i < JOBMAP_CAPACITY; i++) {
@@ -39,7 +39,7 @@ static size_t find_slot(const char *job_id, bool *found) {
     return first_free;
 }
 
-void jobmap_put(const char *job_id, int64_t chat_id) {
+void jobmap_put(const char* job_id, int64_t chat_id) {
     if (!job_id || job_id[0] == '\0')
         return;
 
@@ -58,7 +58,7 @@ void jobmap_put(const char *job_id, int64_t chat_id) {
     pthread_mutex_unlock(&g_lock);
 }
 
-int64_t jobmap_get(const char *job_id) {
+int64_t jobmap_get(const char* job_id) {
     if (!job_id || job_id[0] == '\0')
         return 0;
 
@@ -70,7 +70,7 @@ int64_t jobmap_get(const char *job_id) {
     return chat_id;
 }
 
-void jobmap_remove(const char *job_id) {
+void jobmap_remove(const char* job_id) {
     if (!job_id || job_id[0] == '\0')
         return;
 
