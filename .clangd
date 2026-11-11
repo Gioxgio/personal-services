@@ -1,0 +1,26 @@
+---
+# Single canonical clangd config for the whole repo.
+#
+# Provides compiler flags, completion and inlay hints for clangd across every
+# service. clangd walks up to find the nearest .clangd, so one root file is
+# enough; per-service copies are intentionally absent.
+
+CompileFlags:
+  Add:
+    - -Wall
+    - -Wextra
+    - -Wpedantic
+    - -std=c11
+    - -Wno-unused-parameter
+
+Completion:
+  ArgumentLists: FullPlaceholders
+  HeaderInsertion: IWYU
+
+InlayHints:
+  Enabled: true
+
+Diagnostics:
+  UnusedIncludes: Strict
+
+---

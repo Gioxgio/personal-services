@@ -1,0 +1,15 @@
+# stream-sniper channel list - one channel per line: platform: identifier
+# '#' starts a comment; blank lines are skipped; a malformed line is
+# logged and skipped without aborting startup.
+#
+# Twitch - bare login or full URL
+#   twitch: shroud
+#   twitch: https://twitch.tv/twitch
+#
+# YouTube - @handle, bare UC... channel id, or full URL
+#   youtube: @handle
+#   youtube: UCxxxxxxxxxxxxxxxxxxxxxx
+
+# ---- Twitch ----
+
+# ---- YouTube ----

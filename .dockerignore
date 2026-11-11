@@ -1,0 +1,18 @@
+# Build output: rebuilt from scratch in each Dockerfile builder stage
+download-service/build/
+notification-service/build/
+stream-sniper/build/
+
+# Per-service artifacts
+*.o
+*.d
+compile_commands.json
+
+# Local runtime/user data (never part of an image)
+download-service/.env
+notification-service/.env
+stream-sniper/.env
+stream-sniper/recordings/
+
+# VCS
+.git/

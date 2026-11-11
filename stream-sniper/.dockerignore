@@ -1,0 +1,8 @@
+# VCS history
+.git/
+
+# Build output: rebuilt from scratch in the builder stage
+build/
+
+# Recordings: user data, never part of an image
+recordings/
