@@ -1,0 +1,9 @@
+.git
+.gitignore
+.dockerignore
+build/
+tests/
+*.o
+*.d
+compile_commands.json
+.env

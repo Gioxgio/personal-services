@@ -1,0 +1,35 @@
+#!/bin/sh
+# ffmpeg-quiet - ffmpeg with the per-frame noise removed.
+#
+# stream-sniper hands this to yt-dlp via --ffmpeg-location. Without it yt-dlp
+# spawns ffmpeg with no -loglevel at all (yt_dlp/downloader/external.py only
+# sets one if you passed --quiet/--verbose), so ffmpeg runs at its default
+# "info" level and prints
+#
+#     frame= 1234 fps= 60 q=-1.0 Lsize= 123456kB time=00:12:34.56 bitrate=...
+#
+# twice a second. yt-dlp inherits that stderr rather than piping it, so it
+# lands wherever yt-dlp's own output goes.
+#
+#   -nostats          drop the frame=/fps=/time= counter line
+#   -loglevel error   drop the banner and the per-stream "Input #0" report,
+#                     but keep genuine failures in the per-channel log
+#
+# Kept deliberately above -loglevel error's own effect on the print-and-exit
+# queries (-bsfs, -version), which still emit on stdout so yt-dlp's version
+# and feature detection keeps working.
+#
+# Must stay next to the `ffprobe` passthrough: yt-dlp resolves an
+# --ffmpeg-location to a directory and looks for a sibling `ffprobe`
+# (yt_dlp/postprocessor/ffmpeg.py:120).
+
+REAL=${SS_FFMPEG:-/usr/bin/ffmpeg}
+if [ ! -x "$REAL" ]; then
+    REAL=$(command -v ffmpeg 2>/dev/null) || REAL=
+fi
+if [ -z "$REAL" ]; then
+    echo "ffmpeg-quiet: no ffmpeg binary found" >&2
+    exit 127
+fi
+
+exec "$REAL" -hide_banner -nostats -loglevel error "$@"

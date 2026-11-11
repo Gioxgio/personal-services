@@ -1,0 +1,20 @@
+#!/bin/sh
+# ffprobe - plain passthrough to the system ffprobe.
+#
+# Exists only to sit next to ffmpeg-quiet. yt-dlp turns an --ffmpeg-location
+# into a directory and pairs it with the literal names `ffmpeg` and `ffprobe`
+# (yt_dlp/postprocessor/ffmpeg.py:120), so pointing stream-sniper at
+# ffmpeg-quiet without this sibling makes yt-dlp believe ffprobe is missing.
+#
+# No quieting here: ffprobe output is short, one-shot, and yt-dlp parses it.
+
+REAL=${SS_FFPROBE:-/usr/bin/ffprobe}
+if [ ! -x "$REAL" ]; then
+    REAL=$(command -v ffprobe 2>/dev/null) || REAL=
+fi
+if [ -z "$REAL" ]; then
+    echo "ffprobe: no ffprobe binary found" >&2
+    exit 127
+fi
+
+exec "$REAL" "$@"

@@ -1,0 +1,52 @@
+services:
+  notification-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: notification-service
+    env_file:
+      - notification-service/.env.template
+    environment:
+      PORT: ${PORT:-8080}
+      DOWNLOAD_SERVICE_URL: ${DOWNLOAD_SERVICE_URL:-http://download-service:8080/download}
+    ports:
+      - "${PORT:-8080}:${PORT:-8080}"
+    restart: unless-stopped
+
+  download-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: download-service
+    env_file:
+      - download-service/.env.template
+    environment:
+      PORT: ${PORT:-8081}
+      CALLBACK_URL: ${CALLBACK_URL:-http://notification-service:8080/callback/download}
+    ports:
+      - "${PORT:-8081}:${PORT:-8081}"
+    depends_on:
+      notification-service:
+        condition: service_started
+    restart: unless-stopped
+
+  stream-sniper:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: stream-sniper
+    env_file:
+      - stream-sniper/.env.template
+    environment:
+      TWITCH_CLIENT_ID: ${TWITCH_CLIENT_ID:-}
+      TWITCH_CLIENT_SECRET: ${TWITCH_CLIENT_SECRET:-}
+      TWITCH_TOKEN: ${TWITCH_TOKEN:-}
+      SS_NOTIFY_URL: ${SS_NOTIFY_URL:-http://notification-service:8080/notifications}
+      SS_WRAPPER_DIR: ${SS_WRAPPER_DIR:-/usr/local/libexec/stream-sniper}
+    volumes:
+      - ./stream-sniper/channels.txt:/data/channels.txt:ro
+      - ./stream-sniper/recordings:/data/recordings
+    depends_on:
+      notification-service:
+        condition: service_started
+    restart: unless-stopped

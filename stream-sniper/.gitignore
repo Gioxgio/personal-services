@@ -1,0 +1,12 @@
+# Build output: objects, binaries, copied wrappers (spec.md §6.1).
+build/
+
+# Channel list: personal, never committed; channels.txt.example is the template.
+channels.txt
+
+# Real env file: holds Twitch credentials, same rule as channels.txt.
+# .env.template is the committed template.
+.env
+
+# Recordings: user data, never source.
+recordings/
