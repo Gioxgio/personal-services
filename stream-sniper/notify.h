@@ -2,10 +2,10 @@
  * notify.h - recording start/stop notifications.
  *
  * Whenever a recording starts or stops, the event is POSTed as
- * {"message": "<text>"} to SS_NOTIFY_URL + /notifications. The
- * feature is a silent no-op until notify_init() has seen a usable
- * URL: a missing or dead endpoint must never affect a recording,
- * so every failure path here is at most a log line.
+ * {"source": "stream-sniper", "message": "<text>"} to SS_NOTIFY_URL +
+ * /notifications. The feature is a silent no-op until notify_init()
+ * has seen a usable URL: a missing or dead endpoint must never affect
+ * a recording, so every failure path here is at most a log line.
  */
 
 #ifndef NOTIFY_H

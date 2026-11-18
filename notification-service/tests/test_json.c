@@ -20,56 +20,60 @@ int main() {
     notification_payload_t payload;
 
     // --- Basic parsing ---
-    check(json_parse_request("{\"message\": \"hello\"}", &payload) &&
-              strcmp(payload.message, "hello") == 0,
+    check(json_parse_request("{\"source\": \"test\", \"message\": \"hello\"}", &payload) &&
+              strcmp(payload.message, "hello") == 0 && strcmp(payload.source, "test") == 0,
           "Simple message");
 
-    check(json_parse_request("  {  \"message\"  :  \"hi\"  }  ", &payload) &&
-              strcmp(payload.message, "hi") == 0,
+    check(json_parse_request("  {  \"source\"  :  \"t\",  \"message\"  :  \"hi\"  }  ", &payload) &&
+              strcmp(payload.message, "hi") == 0 && strcmp(payload.source, "t") == 0,
           "Whitespace");
 
-    check(json_parse_request("{\"chat_id\": 123, \"message\": \"test\", \"other\": true}",
+    check(json_parse_request("{\"chat_id\": 123, \"message\": \"test\", \"source\": \"s\", \"other\": true}",
                              &payload) &&
-              strcmp(payload.message, "test") == 0,
+              strcmp(payload.message, "test") == 0 && strcmp(payload.source, "s") == 0,
           "Multiple fields");
 
     // --- Escape sequences ---
-    check(json_parse_request("{\"message\": \"hello\\nworld\"}", &payload) &&
+    check(json_parse_request("{\"message\": \"hello\\nworld\", \"source\": \"s\"}", &payload) &&
               strcmp(payload.message, "hello\nworld") == 0,
           "Escape \\n");
 
-    check(json_parse_request("{\"message\": \"\\\"\\\\\\n\\r\\t\\/\"}", &payload) &&
+    check(json_parse_request("{\"message\": \"\\\"\\\\\\n\\r\\t\\/\", \"source\": \"s\"}", &payload) &&
               strcmp(payload.message, "\"\\\n\r\t/") == 0,
           "All escape types");
 
-    check(json_parse_request("{\"message\": \"a\\tb\\rc\"}", &payload) &&
+    check(json_parse_request("{\"message\": \"a\\tb\\rc\", \"source\": \"s\"}", &payload) &&
               strcmp(payload.message, "a\tb\rc") == 0,
           "Escapes \\t and \\r");
 
     // --- UTF-8 ---
-    check(json_parse_request("{\"message\": \"hello\xF0\x9F\x98\x80\"}", &payload) &&
+    check(json_parse_request("{\"message\": \"hello\xF0\x9F\x98\x80\", \"source\": \"s\"}", &payload) &&
               strcmp(payload.message, "hello\xF0\x9F\x98\x80") == 0,
           "Raw UTF-8 emoji");
 
-    check(json_parse_request("{\"message\": \"caf\xC3\xA9\"}", &payload) &&
+    check(json_parse_request("{\"message\": \"caf\xC3\xA9\", \"source\": \"s\"}", &payload) &&
               strcmp(payload.message, "caf\xC3\xA9") == 0,
           "Raw UTF-8 accented");
 
     // --- Nested structures in other fields ---
-    check(json_parse_request("{\"data\": {\"nested\": true}, \"message\": \"hi\"}", &payload) &&
+    check(json_parse_request("{\"data\": {\"nested\": true}, \"message\": \"hi\", \"source\": \"s\"}",
+                             &payload) &&
               strcmp(payload.message, "hi") == 0,
           "Nested object skipped");
 
-    check(json_parse_request("{\"data\": [1, 2, 3], \"message\": \"hi\"}", &payload) &&
+    check(json_parse_request("{\"data\": [1, 2, 3], \"message\": \"hi\", \"source\": \"s\"}",
+                             &payload) &&
               strcmp(payload.message, "hi") == 0,
           "Array skipped");
 
-    check(json_parse_request("{\"data\": {\"message\": \"nested\"}, \"message\": \"top\"}",
+    check(json_parse_request("{\"data\": {\"message\": \"nested\"}, \"message\": \"top\", "
+                             "\"source\": \"s\"}",
                              &payload) &&
               strcmp(payload.message, "top") == 0,
           "Nested message field ignored");
 
-    check(json_parse_request("{\"data\": \"hello\\u1F600\", \"message\": \"hi\"}", &payload) &&
+    check(json_parse_request("{\"data\": \"hello\\u1F600\", \"message\": \"hi\", \"source\": \"s\"}",
+                             &payload) &&
               strcmp(payload.message, "hi") == 0,
           "\\uXXXX in other field skipped");
 
@@ -80,6 +84,11 @@ int main() {
 
     check(!json_parse_request("{\"message\": \"hello\\u1F600\"}", &payload),
           "\\uXXXX in message rejected");
+
+    check(!json_parse_request("{\"source\": \"s\"}", &payload), "Missing message field");
+
+    check(!json_parse_request("{\"source\": \"\", \"message\": \"hi\"}", &payload),
+          "Empty source rejected");
 
     check(!json_parse_request("not json", &payload), "Invalid JSON");
 
@@ -111,7 +120,7 @@ int main() {
     char buf[5000];
 
     // Exactly 4096 chars — should pass
-    strcpy(buf, "{\"message\": \"");
+    strcpy(buf, "{\"source\": \"s\", \"message\": \"");
     for (int i = 0; i < 4096; i++)
         strcat(buf, "a");
     strcat(buf, "\"}");
@@ -119,14 +128,14 @@ int main() {
           "Exactly 4096 chars accepted");
 
     // 4097 chars — should fail
-    strcpy(buf, "{\"message\": \"");
+    strcpy(buf, "{\"source\": \"s\", \"message\": \"");
     for (int i = 0; i < 4097; i++)
         strcat(buf, "a");
     strcat(buf, "\"}");
     check(!json_parse_request(buf, &payload), "4097 chars rejected");
 
     // 2048 \n escapes (raw 4096 chars, unescaped 2048) — should pass
-    strcpy(buf, "{\"message\": \"");
+    strcpy(buf, "{\"source\": \"s\", \"message\": \"");
     for (int i = 0; i < 2048; i++)
         strcat(buf, "\\n");
     strcat(buf, "\"}");

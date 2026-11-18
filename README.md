@@ -95,16 +95,15 @@ the stack up.
 
 ## Notifications: the `source` field (whiteboard todo)
 
-- `POST /notifications` on `notification-service` now accepts an optional
-  `source` string alongside the required `message`:
+- `POST /notifications` on `notification-service` requires both `source`
+  and `message` strings:
 
   ```json
   { "source": "stream-sniper", "message": "started recording cool-game" }
   ```
 
-- The message is formatted as `"[source] message"` when a source is given
-  (e.g. `"[stream-sniper] started recording cool-game"`), and as plain
-  `message` otherwise.
+- The message is always formatted as `"[source] message"` (e.g.
+  `"[stream-sniper] started recording cool-game"`).
 - Every service that sends notifications tags itself:
   - `stream-sniper` POSTs `{ "source": "stream-sniper", "message": ... }`
     (message text no longer repeats the service name).

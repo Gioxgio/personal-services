@@ -100,14 +100,10 @@ int telegram_send_message_to(const char* token, const char* chat_id, const char*
 
 int telegram_send_message(const telegram_config_t* config, const notification_payload_t* payload,
                           char* response_out, size_t response_capacity) {
-    /* Message format: "[source] message" when a source is set. */
+    /* Message format: "[source] message". Source is always set and
+     * non-empty by the sender (validated by the JSON parser). */
     char formatted[MAX_TELEGRAM_MSG_LEN + 1];
-    int n;
-    if (payload->source[0] != '\0') {
-        n = snprintf(formatted, sizeof(formatted), "[%s] %s", payload->source, payload->message);
-    } else {
-        n = snprintf(formatted, sizeof(formatted), "%s", payload->message);
-    }
+    int n = snprintf(formatted, sizeof(formatted), "[%s] %s", payload->source, payload->message);
     if (n < 0 || (size_t)n >= sizeof(formatted)) {
         n = snprintf(formatted, sizeof(formatted), "%s", payload->message);
     }

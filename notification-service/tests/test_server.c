@@ -255,7 +255,7 @@ static void test_dispatch(void) {
 
     /* --- JSON validation (all rejected before any Telegram call) --- */
 
-    dispatch_post(&config, "{\"message\":\"hi\"}", &response);
+    dispatch_post(&config, "{\"source\":\"test\",\"message\":\"hi\"}", &response);
     check(response.status_code == 502,
           "dispatch: valid message reaches Telegram (dead port -> 502)");
 
@@ -265,10 +265,10 @@ static void test_dispatch(void) {
     dispatch_post(&config, "{\"foo\":\"bar\"}", &response);
     check(response.status_code == 400, "dispatch: missing message is 400");
 
-    dispatch_post(&config, "{\"message\":\"\"}", &response);
+    dispatch_post(&config, "{\"source\":\"test\",\"message\":\"\"}", &response);
     check(response.status_code == 400, "dispatch: empty message is 400");
 
-    dispatch_post(&config, "{\"message\":\"hello\\u1F600\"}", &response);
+    dispatch_post(&config, "{\"source\":\"test\",\"message\":\"hello\\u1F600\"}", &response);
     check(response.status_code == 400, "dispatch: \\uXXXX escape is 400");
 
     dispatch_post(&config, "", &response);
@@ -857,9 +857,9 @@ static void test_end_to_end(void) {
                    "POST /notifications HTTP/1.1\r\n"
                    "Host: localhost\r\n"
                    "Content-Type: application/json\r\n"
-                   "Content-Length: 19\r\n"
+                   "Content-Length: 35\r\n"
                    "\r\n"
-                   "{\"message\":\"hello\"}");
+                   "{\"source\":\"test\",\"message\":\"hello\"}");
     status = exchange(request, (size_t)len, response, sizeof(response));
     check(status == 200, "e2e: happy path is 200");
     check(strstr(response, "\"status\": 200") != NULL, "e2e: 200 body");
@@ -898,9 +898,9 @@ static void test_end_to_end(void) {
     len = snprintf(request, sizeof(request),
                    "POST /other HTTP/1.1\r\n"
                    "Host: localhost\r\n"
-                   "Content-Length: 19\r\n"
+                   "Content-Length: 35\r\n"
                    "\r\n"
-                   "{\"message\":\"hello\"}");
+                   "{\"source\":\"test\",\"message\":\"hello\"}");
     status = exchange(request, (size_t)len, response, sizeof(response));
     check(status == 404, "e2e: unknown path is 404");
 
@@ -924,9 +924,9 @@ static void test_end_to_end(void) {
 
     len = snprintf(request, sizeof(request),
                    "POST /notifications HTTP/1.1\r\n"
-                   "Content-Length: 13\r\n"
+                   "Content-Length: 27\r\n"
                    "\r\n"
-                   "{\"message\":\"\"}");
+                   "{\"source\":\"t\",\"message\":\"\"}");
     status = exchange(request, (size_t)len, response, sizeof(response));
     check(status == 400, "e2e: empty message is 400");
 
@@ -991,9 +991,9 @@ static void test_end_to_end(void) {
     {
         const char* head = "POST /notifications HTTP/1.1\r\n"
                            "Content-Type: application/json\r\n"
-                           "Content-Length: 19\r\n"
+                           "Content-Length: 35\r\n"
                            "\r\n";
-        const char* body = "{\"message\":\"hello\"}";
+        const char* body = "{\"source\":\"test\",\"message\":\"hello\"}";
         status = exchange_split(head, strlen(head), body, strlen(body), response, sizeof(response));
         check(status == 200, "e2e: headers and body split across segments");
     }
@@ -1004,8 +1004,8 @@ static void test_end_to_end(void) {
     mock = spawn_mock_telegram(200, "{\"ok\":true}");
     {
         const char* part1 = "POST /notif";
-        const char* part2 = "ications HTTP/1.1\r\nContent-Length: 19\r\n\r\n"
-                            "{\"message\":\"hello\"}";
+        const char* part2 = "ications HTTP/1.1\r\nContent-Length: 35\r\n\r\n"
+                            "{\"source\":\"test\",\"message\":\"hello\"}";
         status =
             exchange_split(part1, strlen(part1), part2, strlen(part2), response, sizeof(response));
         check(status == 200, "e2e: request line split mid-token");
@@ -1054,9 +1054,9 @@ static void test_end_to_end(void) {
     mock = spawn_mock_telegram(200, "{\"ok\":true}");
     len = snprintf(request, sizeof(request),
                    "POST /notifications HTTP/1.1\r\n"
-                   "Content-Length: 19\r\n"
+                   "Content-Length: 35\r\n"
                    "\r\n"
-                   "{\"message\":\"hello\"}");
+                   "{\"source\":\"test\",\"message\":\"hello\"}");
     status = exchange(request, (size_t)len, response, sizeof(response));
     check(status == 200, "e2e: server still serving after a stalled client");
     waitpid(mock, &child_status, 0);

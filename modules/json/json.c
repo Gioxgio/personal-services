@@ -126,12 +126,13 @@ bool json_parse_request(const char* json_raw, notification_payload_t* out_payloa
     p++;
 
     bool found_message = false;
+    bool found_source = false;
 
     // Skip whitespace after '{'
     while (*p && isspace((unsigned char)*p))
         p++;
 
-    // Empty object: no message field
+    // Empty object: no message/source fields
     if (*p == '}')
         return false;
 
@@ -288,6 +289,9 @@ bool json_parse_request(const char* json_raw, notification_payload_t* out_payloa
                 return false;
             p++;
             out_payload->source[src_len] = '\0';
+            if (src_len == 0)
+                return false; /* source must be non-empty */
+            found_source = true;
         } else {
             /* Skip non-message values (strings, numbers, objects, arrays, etc.) */
             if (!skip_value(&p))
@@ -317,7 +321,7 @@ bool json_parse_request(const char* json_raw, notification_payload_t* out_payloa
     if (*p != '\0')
         return false;
 
-    return found_message;
+    return found_message && found_source;
 }
 
 /* ---------- small JSON value readers ---------- */
