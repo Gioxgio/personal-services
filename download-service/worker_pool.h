@@ -48,6 +48,7 @@ typedef struct {
     const char* yt_dlp_path;  /* path to the yt-dlp executable */
     const char* storage_path; /* downloads are streamed to disk here */
     const char* callback_url; /* download.callback.url; empty disables callbacks */
+    const char* notify_url;   /* download.notify.url; POST /notifications to this base */
 } worker_pool_config_t;
 
 /*

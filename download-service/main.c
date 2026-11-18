@@ -160,6 +160,11 @@ int main(void) {
      * (download.callback.url). Empty disables callbacks. */
     const char* callback_url = getenv("CALLBACK_URL");
 
+    /* Base URL of the notification endpoint; download-service POSTs
+     * {"source": "download-service", "message": "..."} to
+     * <notify_url>/notifications on download start/finish. Empty disables. */
+    const char* notify_url = getenv("NOTIFY_URL");
+
     const char* concurrency_str = getenv("DOWNLOAD_CONCURRENCY");
     if (!concurrency_str || concurrency_str[0] == '\0') {
         concurrency_str = NULL; /* use the default below */
@@ -196,6 +201,7 @@ int main(void) {
     pool_config.yt_dlp_path = yt_dlp_path;
     pool_config.storage_path = storage_path;
     pool_config.callback_url = callback_url;
+    pool_config.notify_url = notify_url;
 
     if (worker_pool_start(&pool_config) != 0) {
         fprintf(stderr, "download-service: failed to start the download worker pool\n");

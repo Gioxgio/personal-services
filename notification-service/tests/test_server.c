@@ -511,7 +511,7 @@ static void test_webhook(void) {
     http_response_t response;
 
     /* The dispatcher calls download_submit (DOWNLOAD_SERVICE_URL) and
-     * telegram_send_message_to (TELEGRAM_API_URL), so both need a mock. */
+     * telegram_send_message (TELEGRAM_API_URL), so both need a mock. */
     setenv("TELEGRAM_API_URL", "http://127.0.0.1:18932", 1);
     setenv("DOWNLOAD_SERVICE_URL", "http://127.0.0.1:18940/download", 1);
 
@@ -581,11 +581,8 @@ static void dispatch_callback(const server_config_t* config, const char* body,
 static void test_callback(void) {
     server_config_t config = make_config();
     http_response_t response;
-    char body[2048];
 
     setenv("TELEGRAM_API_URL", "http://127.0.0.1:18932", 1);
-    unlink("/tmp/opencode/telegram_body_ok.txt");
-    unlink("/tmp/opencode/telegram_body_fail.txt");
 
     /* --- routing errors (no network needed) --- */
 
@@ -619,10 +616,9 @@ static void test_callback(void) {
     jobmap_put("cb-job-ok", 42);
     jobmap_put("cb-job-fail", 42);
 
-    /* completed: file path delivered, mapping removed */
+    /* completed: mapping removed (notification-service no longer sends
+     * Telegram; download-service owns download notifications) */
     {
-        setenv("TELEGRAM_TEST_BODY_FILE", "/tmp/opencode/telegram_body_ok.txt", 1);
-        pid_t mock = spawn_mock_telegram(200, "{\"ok\": true}");
         dispatch_callback(&config,
                           "{\"job_id\": \"cb-job-ok\", \"chat_id\": 42, "
                           "\"status\": \"completed\", \"file_path\": "
@@ -630,43 +626,16 @@ static void test_callback(void) {
                           &response);
         check(response.status_code == 200, "callback: completed is 200");
         check(jobmap_get("cb-job-ok") == 0, "callback: completed job removed from map");
-        waitpid(mock, NULL, 0);
-
-        FILE* f = fopen("/tmp/opencode/telegram_body_ok.txt", "r");
-        check(f != NULL, "callback: telegram request captured");
-        if (f) {
-            size_t n = fread(body, 1, sizeof(body) - 1, f);
-            body[n] = '\0';
-            fclose(f);
-            check(strstr(body, "\"chat_id\": \"42\"") != NULL,
-                  "callback: delivered to the mapped chat");
-            check(strstr(body, "Download complete") != NULL, "callback: success text delivered");
-            check(strstr(body, "/data/downloads/abc123.mp4") != NULL,
-                  "callback: file path delivered");
-        }
     }
 
     /* failed: error message delivered, mapping removed */
     {
-        setenv("TELEGRAM_TEST_BODY_FILE", "/tmp/opencode/telegram_body_fail.txt", 1);
-        pid_t mock = spawn_mock_telegram(200, "{\"ok\": true}");
         dispatch_callback(&config,
                           "{\"job_id\": \"cb-job-fail\", \"chat_id\": 42, "
                           "\"status\": \"failed\", \"error\": \"yt-dlp exited 1\"}",
                           &response);
         check(response.status_code == 200, "callback: failed is 200");
         check(jobmap_get("cb-job-fail") == 0, "callback: failed job removed from map");
-        waitpid(mock, NULL, 0);
-
-        FILE* f = fopen("/tmp/opencode/telegram_body_fail.txt", "r");
-        check(f != NULL, "callback: telegram request captured");
-        if (f) {
-            size_t n = fread(body, 1, sizeof(body) - 1, f);
-            body[n] = '\0';
-            fclose(f);
-            check(strstr(body, "Download failed") != NULL, "callback: failure text delivered");
-            check(strstr(body, "yt-dlp exited 1") != NULL, "callback: error message delivered");
-        }
     }
 
     /* --- delivery failure is still acknowledged --- */

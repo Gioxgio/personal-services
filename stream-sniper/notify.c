@@ -1,27 +1,25 @@
 /*
  * notify.c - recording start/stop notifications.
  *
- * One POST per recording boundary, to the base URL SS_NOTIFY_URL
- * names (the fixed path /notifications is appended by
- * notify_init(), not by the caller, so the env var holds a bare
- * base like http://192.168.1.50:9000).
+ * Whenever a recording starts or stops, the event is POSTed as
+ * {"source": "stream-sniper", "message": "<text>"} to SS_NOTIFY_URL +
+ * /notifications. The feature is a silent no-op until notify_init()
+ * has seen a usable URL: a missing or dead endpoint must never affect
+ * a recording, so every failure path here is at most a log line.
  *
- * Failure semantics: http.c already logs every transport and
- * status failure, and a notification that never arrives changes
- * nothing about the recording - so the failures are ignored here.
- * The cost is this thread's HTTP timeouts, which is the known
- * tradeoff (a shorter-timeout http_post_ex() is the follow-up).
+ * The actual HTTP POST is delegated to the shared modules/notify
+ * implementation (notify_post()), which uses blocking BSD sockets with
+ * fixed timeouts. Failure is ignored here: a notification that never
+ * arrives changes nothing about the recording.
  *
- * Thread safety: notify_init() writes the URL once, before any
- * recorder thread exists; afterwards it is read-only, so the
- * recorder threads that fire these notifications need no lock.
- * http_post() takes a fresh curl easy handle per call, and
- * curl_global_init() ran in main().
+ * Thread safety: notify_init() writes the URL once, before any recorder
+ * thread exists; afterwards it is read-only, so the recorder threads
+ * that fire these notifications need no lock.
  */
 
 #include "notify.h"
 
-#include "http.h"
+#include "../modules/notify/notify.h"
 #include "log.h"
 #include "util.h"
 
@@ -127,19 +125,7 @@ static void notify_send(const char* message) {
         return;
 
     /* Every notification carries the originating service as "source". */
-    char* quoted_src = notify_json_quote("stream-sniper");
-    char* quoted_msg = notify_json_quote(message);
-    size_t need = strlen(quoted_src) + strlen(quoted_msg) + sizeof("{\"source\": , \"message\": }");
-    char* body = xmalloc(need);
-    snprintf(body, need, "{\"source\": %s, \"message\": %s}", quoted_src, quoted_msg);
-    free(quoted_src);
-    free(quoted_msg);
-
-    const char* hdrs[] = {"Content-Type: application/json", NULL};
-    http_buffer out = {0};
-    http_post(g_url, hdrs, body, &out);
-    http_buffer_free(&out);
-    free(body);
+    notify_post(g_url, "stream-sniper", message);
 }
 
 static void notify_fmt(const char* fmt, ...) {
@@ -163,9 +149,9 @@ static void notify_fmt(const char* fmt, ...) {
 }
 
 void notify_recording_started(const channel_t* ch) {
-    notify_fmt("started recording %s", ch->slug);
+    notify_fmt("Started recording %s", ch->slug);
 }
 
 void notify_recording_stopped(const channel_t* ch, bool clean, const char* dur) {
-    notify_fmt("stopped recording %s after %s (%s)", ch->slug, dur, clean ? "completed" : "failed");
+    notify_fmt("Stopped recording %s after %s (%s)", ch->slug, dur, clean ? "completed" : "failed");
 }

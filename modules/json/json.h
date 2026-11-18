@@ -9,6 +9,7 @@
 
 typedef struct {
     char source[MAX_NOTIFICATION_SOURCE_LEN + 1]; /* who sent the notification */
+    char chat_id[33];                             /* target Telegram chat (optional; falls back to config) */
     char message[MAX_TELEGRAM_MSG_LEN + 1];
 } notification_payload_t;
 

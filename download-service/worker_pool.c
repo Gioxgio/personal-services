@@ -6,6 +6,7 @@
 
 #include "callback.h"
 #include "downloader.h"
+#include "notify.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -126,6 +127,19 @@ static void run_job(job_t* job) {
     fprintf(stderr, "download-service: download started job_id=%s chat_id=%d url=%s\n",
             job->job_id, job->chat_id, job->url);
 
+    /* Notify that the download has started. Download-service owns this
+     * notification; it is sent via POST /notifications to the notification
+     * service with source "download-service". */
+    if (g_config.notify_url && g_config.notify_url[0] != '\0') {
+        char msg[512];
+        int n = snprintf(msg, sizeof(msg), "Download started.");
+        if (n < 0 || (size_t)n >= sizeof(msg))
+            snprintf(msg, sizeof(msg), "Download started.");
+        if (!notify_send(g_config.notify_url, msg))
+            fprintf(stderr, "download-service: start notification for job %s failed\n",
+                    job->job_id);
+    }
+
     pthread_mutex_lock(&g_queue_mutex);
     g_running++;
     if (g_running > g_max_running)
@@ -170,6 +184,25 @@ static void run_job(job_t* job) {
     job->done = true;
     pthread_cond_broadcast(&job->cond);
     pthread_mutex_unlock(&job->lock);
+
+    /* Notify that the download has finished. Download-service owns this
+     * notification; it is sent via POST /notifications to the notification
+     * service with source "download-service". */
+    if (g_config.notify_url && g_config.notify_url[0] != '\0') {
+        char msg[512];
+        if (job->status == JOB_COMPLETED) {
+            int n = snprintf(msg, sizeof(msg), "Download complete.");
+            if (n < 0 || (size_t)n >= sizeof(msg))
+                snprintf(msg, sizeof(msg), "Download complete.");
+        } else {
+            int n = snprintf(msg, sizeof(msg), "Download failed: %s", job->error);
+            if (n < 0 || (size_t)n >= sizeof(msg))
+                snprintf(msg, sizeof(msg), "Download failed.");
+        }
+        if (!notify_send(g_config.notify_url, msg))
+            fprintf(stderr, "download-service: finish notification for job %s failed\n",
+                    job->job_id);
+    }
 
     if (ctx) {
         fprintf(stderr, "download-service: callback called job_id=%s chat_id=%d status=%s\n",

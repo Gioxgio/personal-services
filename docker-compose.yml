@@ -23,6 +23,7 @@ services:
     environment:
       PORT: ${PORT:-8081}
       CALLBACK_URL: ${CALLBACK_URL:-http://notification-service:8080/callback/download}
+      NOTIFY_URL: ${NOTIFY_URL:-http://notification-service:8080/notifications}
     ports:
       - "${PORT:-8081}:${PORT:-8081}"
     depends_on:

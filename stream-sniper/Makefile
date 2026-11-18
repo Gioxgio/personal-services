@@ -37,10 +37,17 @@ TARGET   := $(BUILD)/stream-sniper
 # unchanged tree still costs nothing.
 FLAGSTAMP := $(BUILD)/.flags
 
+# Shared outbound-notification module (lives under modules/notify/).
+MODULE_NOTIFY_SRC = ../modules/notify/notify.c
+MODULE_NOTIFY_OBJ = $(BUILD)/modules_notify.o
+
 # Local sources (service-specific). http.c is a cross-service module living
-# in modules/http_client/.
-SRCS     := main.c config.c probe.c recorder.c twitch_auth.c ../modules/http_client/http.c log.c util.c jsonlite.c urlparse.c notify.c
-OBJS     := $(addprefix $(BUILD)/,$(notdir $(SRCS:.c=.o)))
+# in modules/http_client/. notify.c is the service-specific recording
+# notification layer; its HTTP engine is the shared modules/notify module
+# below, compiled separately to avoid clashing with build/notify.o.
+SRCS     := main.c config.c probe.c recorder.c twitch_auth.c ../modules/http_client/http.c \
+            log.c util.c jsonlite.c urlparse.c notify.c
+OBJS     := $(addprefix $(BUILD)/,$(notdir $(SRCS:.c=.o))) $(MODULE_NOTIFY_OBJ)
 DEPS     := $(OBJS:.o=.d)
 
 ASSETS   := $(BUILD)/ffmpeg-quiet $(BUILD)/ffprobe
@@ -103,6 +110,10 @@ $(BUILD)/%.o: %.c $(FLAGSTAMP) | $(BUILD)
 # Module source: http.c lives in modules/http_client/.
 $(BUILD)/http.o: ../modules/http_client/http.c $(FLAGSTAMP) | $(BUILD)
 	$(CC) $(CFLAGS) -I. -MMD -MP -c $< -o $@
+
+# Module source: the shared notify engine lives in modules/notify/.
+$(MODULE_NOTIFY_OBJ): $(MODULE_NOTIFY_SRC) $(FLAGSTAMP) | $(BUILD)
+	$(CC) $(CFLAGS) -MMD -MP -c $< -o $@
 
 # $(ASSETS) is a prerequisite of `test`, not just of the binary: test_recorder
 # resolves its ffmpeg wrapper the way the program does, by looking beside

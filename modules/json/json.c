@@ -114,6 +114,9 @@ bool json_parse_request(const char* json_raw, notification_payload_t* out_payloa
     if (!json_raw || !out_payload)
         return false;
 
+    /* Start from a clean payload. */
+    memset(out_payload, 0, sizeof(*out_payload));
+
     const char* p = json_raw;
 
     // Skip leading whitespace
@@ -292,6 +295,29 @@ bool json_parse_request(const char* json_raw, notification_payload_t* out_payloa
             if (src_len == 0)
                 return false; /* source must be non-empty */
             found_source = true;
+        } else if (strcmp(key, "chat_id") == 0) {
+            /* Only accept chat_id when it is a JSON string; otherwise skip it. */
+            if (*p != '"') {
+                if (!skip_value(&p))
+                    return false;
+            } else {
+                p++;
+                size_t cid_len = 0;
+                while (*p && *p != '"') {
+                    if (*p == '\\') {
+                        p++;
+                        if (*p == '\0')
+                            return false;
+                    }
+                    if (cid_len < 32)
+                        out_payload->chat_id[cid_len++] = *p;
+                    p++;
+                }
+                if (*p != '"')
+                    return false;
+                p++;
+                out_payload->chat_id[cid_len] = '\0';
+            }
         } else {
             /* Skip non-message values (strings, numbers, objects, arrays, etc.) */
             if (!skip_value(&p))
