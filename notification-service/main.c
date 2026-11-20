@@ -168,22 +168,18 @@ static void* poll_loop(void* arg) {
                     }
                 }
 
-                /* Extract chat_id + text from the update's "message". */
-                /* Temporarily NUL-terminate a copy of this object. */
+                /* Extract the text from the update's "message". The target chat
+                 * always comes from the config, not from the update. */
                 size_t obj_len = (size_t)(obj_end - start);
                 if (obj_len > 0 && obj_len <= MAX_UPDATE_BODY) {
                     char obj_copy[MAX_UPDATE_BODY + 1];
                     memcpy(obj_copy, start, obj_len);
                     obj_copy[obj_len] = '\0';
 
-                    char chat_id_str[32];
                     char text[MAX_TELEGRAM_MSG_LEN + 1];
-                    if (json_extract_telegram_update(obj_copy, chat_id_str, sizeof(chat_id_str),
-                                                     text, sizeof(text))) {
-                        fprintf(stderr,
-                                "notification-service: message received chat_id=%s\n",
-                                chat_id_str);
-                        handle_update(config, chat_id_str, text);
+                    if (json_extract_telegram_update(obj_copy, text, sizeof(text))) {
+                        fprintf(stderr, "notification-service: message received text=%s\n", text);
+                        handle_update(config, text);
                     }
                 }
 

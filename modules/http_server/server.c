@@ -5,7 +5,7 @@
 #include "server.h"
 
 #include "download.h"
-#include "jobmap.h"
+#include "jobset.h"
 #include "json.h"
 
 #include <arpa/inet.h>
@@ -197,16 +197,13 @@ static content_length_state_t parse_content_length(const char* headers, long* ou
 }
 
 /*
- * Send a reply to the chat that originated the webhook update. Failures are
- * logged only; the webhook still acknowledges 200 to Telegram so it does not
- * retry. All Telegram writes go through telegram_send_message() with a
- * source/message payload.
+ * Send a reply via the configured chat. Failures are logged only; the webhook
+ * still acknowledges 200 to Telegram so it does not retry. All Telegram writes
+ * go through telegram_send_message() with a source/message payload.
  */
-static void send_telegram_reply(const server_config_t* config, const char* chat_id,
-                                const char* text) {
+static void send_telegram_reply(const server_config_t* config, const char* text) {
     notification_payload_t payload;
     snprintf(payload.source, sizeof(payload.source), "notification-service");
-    snprintf(payload.chat_id, sizeof(payload.chat_id), "%s", chat_id);
     snprintf(payload.message, sizeof(payload.message), "%s", text);
 
     char telegram_response[MAX_TELEGRAM_RESPONSE];
@@ -222,11 +219,11 @@ static void send_telegram_reply(const server_config_t* config, const char* chat_
 
 /*
  * Handle a single Telegram update (webhook or polling): if the text is a
- * `/download <url>` command, forward it to the download-service, record the
- * job_id -> chat_id mapping, and reply to the user. Non-/download messages are
+ * `/download <url>` command, forward it to the download-service, track the job
+ * id, and reply via the configured chat. Non-/download messages are
  * acknowledged silently.
  */
-void handle_update(const server_config_t* config, const char* chat_id, const char* text) {
+void handle_update(const server_config_t* config, const char* text) {
     /* Only the /download command is handled. */
     if (strncmp(text, "/download", 9) != 0) {
         return;
@@ -236,19 +233,17 @@ void handle_update(const server_config_t* config, const char* chat_id, const cha
     while (*arg == ' ')
         arg++;
     if (*arg == '\0') {
-        send_telegram_reply(config, chat_id, "Usage: /download <url>");
+        send_telegram_reply(config, "Usage: /download <url>");
         return;
     }
 
-    int64_t chat_id_num = strtoll(chat_id, NULL, 10);
     char job_id[37];
-    fprintf(stderr, "notification-service: message forwarded chat_id=%s url=%s\n",
-            chat_id, arg);
-    int rc = download_submit(chat_id_num, arg, job_id, sizeof(job_id));
+    fprintf(stderr, "notification-service: message forwarded url=%s\n", arg);
+    int rc = download_submit(arg, job_id, sizeof(job_id));
 
     const char* reply;
     if (rc == 0) {
-        jobmap_put(job_id, chat_id_num);
+        jobset_add(job_id);
         reply = "Download started.";
     } else if (rc == 1) {
         reply = "Unsupported domain.";
@@ -256,12 +251,12 @@ void handle_update(const server_config_t* config, const char* chat_id, const cha
         reply = "Failed to start the download.";
     }
 
-    send_telegram_reply(config, chat_id, reply);
+    send_telegram_reply(config, reply);
 }
 
 /*
- * Handle a Telegram webhook update. Extracts the chat id and text from the
- * JSON body, then delegates to handle_update().
+ * Handle a Telegram webhook update. Extracts the text from the JSON body,
+ * then delegates to handle_update().
  */
 static void handle_webhook(const server_config_t* config, const char* body, size_t body_length,
                            http_response_t* response) {
@@ -274,17 +269,15 @@ static void handle_webhook(const server_config_t* config, const char* body, size
     }
     body_copy[copy_len] = '\0';
 
-    char chat_id_str[32];
     char text[MAX_TELEGRAM_MSG_LEN + 1];
-    if (!json_extract_telegram_update(body_copy, chat_id_str, sizeof(chat_id_str), text,
-                                      sizeof(text))) {
+    if (!json_extract_telegram_update(body_copy, text, sizeof(text))) {
         set_response(response, 400);
         return;
     }
 
-    fprintf(stderr, "notification-service: message received chat_id=%s\n", chat_id_str);
+    fprintf(stderr, "notification-service: message received text=%s\n", text);
 
-    handle_update(config, chat_id_str, text);
+    handle_update(config, text);
 
     set_response(response, 200);
     response->body_length = 0;
@@ -319,10 +312,9 @@ static void handle_callback(const server_config_t* config, const char* body, siz
     }
 
     /*
-     * The job_id -> chat_id map is authoritative: unknown jobs are rejected
-     * before any acknowledgment.
+     * Only known jobs are acknowledged.
      */
-    if (jobmap_get(job_id) == 0) {
+    if (!jobset_contains(job_id)) {
         set_response(response, 400);
         return;
     }
@@ -330,7 +322,7 @@ static void handle_callback(const server_config_t* config, const char* body, siz
     fprintf(stderr, "notification-service: callback received job_id=%s\n", job_id);
 
     /* Flow ends here: the job is no longer tracked. */
-    jobmap_remove(job_id);
+    jobset_remove(job_id);
 
     set_response(response, 200);
     response->body_length = 0;

@@ -95,7 +95,6 @@ static unsigned int g_max_running = 0;
 typedef struct {
     const char* callback_url;
     char job_id[37];          /* uuid + NUL */
-    int chat_id;              /* originating chat, echoed in the callback */
     char status[10];          /* "completed" or "failed" */
     char file_path[PATH_MAX]; /* set when status == completed */
     char error[256];          /* set when status == failed */
@@ -106,8 +105,7 @@ typedef struct {
  * download worker. */
 static void* callback_thread(void* arg) {
     callback_ctx_t* ctx = arg;
-    if (!callback_send(ctx->callback_url, ctx->job_id, ctx->chat_id, ctx->status, ctx->file_path,
-                       ctx->error)) {
+    if (!callback_send(ctx->callback_url, ctx->job_id, ctx->status, ctx->file_path, ctx->error)) {
         fprintf(stderr, "download-service: callback for job %s failed\n", ctx->job_id);
     }
     free(ctx);
@@ -124,8 +122,8 @@ static void run_job(job_t* job) {
     job->status = JOB_RUNNING;
     pthread_mutex_unlock(&job->lock);
 
-    fprintf(stderr, "download-service: download started job_id=%s chat_id=%d url=%s\n",
-            job->job_id, job->chat_id, job->url);
+    fprintf(stderr, "download-service: download started job_id=%s url=%s\n", job->job_id,
+            job->url);
 
     /* Notify that the download has started. Download-service owns this
      * notification; it is sent via POST /notifications to the notification
@@ -173,7 +171,6 @@ static void run_job(job_t* job) {
         if (ctx) {
             ctx->callback_url = g_config.callback_url;
             snprintf(ctx->job_id, sizeof(ctx->job_id), "%s", job->job_id);
-            ctx->chat_id = job->chat_id;
             snprintf(ctx->status, sizeof(ctx->status), "%s",
                      job->status == JOB_COMPLETED ? "completed" : "failed");
             snprintf(ctx->file_path, sizeof(ctx->file_path), "%s", job->file_path);
@@ -205,8 +202,7 @@ static void run_job(job_t* job) {
     }
 
     if (ctx) {
-        fprintf(stderr, "download-service: callback called job_id=%s chat_id=%d status=%s\n",
-                job->job_id, job->chat_id,
+        fprintf(stderr, "download-service: callback called job_id=%s status=%s\n", job->job_id,
                 job->status == JOB_COMPLETED ? "completed" : "failed");
         pthread_t tid;
         if (pthread_create(&tid, NULL, callback_thread, ctx) == 0) {
@@ -346,7 +342,7 @@ int worker_pool_dispatch(job_t* job) {
     return 0;
 }
 
-job_t* job_create(const char* url, int chat_id, const char* format) {
+job_t* job_create(const char* url, const char* format) {
     if (!url || url[0] == '\0')
         return NULL;
 
@@ -365,7 +361,6 @@ job_t* job_create(const char* url, int chat_id, const char* format) {
     memcpy(job->url, url, url_len);
     job->url[url_len] = '\0';
 
-    job->chat_id = chat_id;
     const char* fmt = format && format[0] ? format : "video";
     size_t fmt_len = strlen(fmt);
     if (fmt_len >= sizeof(job->format))

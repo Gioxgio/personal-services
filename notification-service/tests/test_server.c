@@ -4,6 +4,8 @@
 
 #include "../modules/http_server/server.c"
 
+#include "jobset.h"
+
 #include <arpa/inet.h>
 #include <curl/curl.h>
 #include <signal.h>
@@ -532,7 +534,7 @@ static void test_webhook(void) {
                  "{\"update_id\": 1}", &response);
     check(response.status_code == 400, "webhook: update without message text is 400");
 
-    /* --- happy path: download accepted, mapping recorded --- */
+    /* --- happy path: download accepted, job tracked --- */
 
     pid_t mock_dl = spawn_mock_download(200, "{\"job_id\": \"wh-job-1\"}");
     pid_t mock_tg = spawn_mock_telegram(200, "{\"ok\": true}");
@@ -542,7 +544,7 @@ static void test_webhook(void) {
                      "\"text\":\"/download https://youtu.be/xyz\"}}",
                      &response);
     check(response.status_code == 200, "webhook: accepted download is 200");
-    check(jobmap_get("wh-job-1") == 42, "webhook: job_id -> chat_id mapping recorded");
+    check(jobset_contains("wh-job-1"), "webhook: accepted job is tracked");
 
     waitpid(mock_dl, NULL, 0);
     waitpid(mock_tg, NULL, 0);
@@ -557,7 +559,7 @@ static void test_webhook(void) {
                      "\"text\":\"/download https://vimeo.com/123\"}}",
                      &response);
     check(response.status_code == 200, "webhook: unsupported domain is 200");
-    check(jobmap_get("wh-job-1") == 42, "webhook: rejected download does not clobber mapping");
+    check(jobset_contains("wh-job-1"), "webhook: rejected download does not drop tracked job");
 
     waitpid(mock_dl, NULL, 0);
     waitpid(mock_tg, NULL, 0);
@@ -600,54 +602,53 @@ static void test_callback(void) {
     dispatch_callback(&config, "not json", &response);
     check(response.status_code == 400, "callback: invalid JSON is 400");
 
-    dispatch_callback(&config, "{\"chat_id\": 42}", &response);
+    dispatch_callback(&config, "{\"status\": \"completed\"}", &response);
     check(response.status_code == 400, "callback: missing job_id is 400");
 
-    /* job not tracked -> rejected before any delivery attempt */
+    /* job not tracked -> rejected before any acknowledgment */
     dispatch_callback(&config,
-                      "{\"job_id\": \"cb-unknown\", \"chat_id\": 42, "
+                      "{\"job_id\": \"cb-unknown\", "
                       "\"status\": \"completed\", \"file_path\": \"/data/x.mp4\"}",
                       &response);
     check(response.status_code == 400, "callback: unknown job is 400");
-    check(jobmap_get("cb-unknown") == 0, "callback: unknown job not tracked");
+    check(!jobset_contains("cb-unknown"), "callback: unknown job not tracked");
 
-    /* --- happy paths: delivery happens and the mapping is dropped --- */
+    /* --- happy paths: the job is acknowledged and no longer tracked --- */
 
-    jobmap_put("cb-job-ok", 42);
-    jobmap_put("cb-job-fail", 42);
+    jobset_add("cb-job-ok");
+    jobset_add("cb-job-fail");
 
-    /* completed: mapping removed (notification-service no longer sends
+    /* completed: job removed (notification-service no longer sends
      * Telegram; download-service owns download notifications) */
     {
         dispatch_callback(&config,
-                          "{\"job_id\": \"cb-job-ok\", \"chat_id\": 42, "
+                          "{\"job_id\": \"cb-job-ok\", "
                           "\"status\": \"completed\", \"file_path\": "
                           "\"/data/downloads/abc123.mp4\"}",
                           &response);
         check(response.status_code == 200, "callback: completed is 200");
-        check(jobmap_get("cb-job-ok") == 0, "callback: completed job removed from map");
+        check(!jobset_contains("cb-job-ok"), "callback: completed job removed from set");
     }
 
-    /* failed: error message delivered, mapping removed */
+    /* failed: error acknowledged, job removed */
     {
         dispatch_callback(&config,
-                          "{\"job_id\": \"cb-job-fail\", \"chat_id\": 42, "
+                          "{\"job_id\": \"cb-job-fail\", "
                           "\"status\": \"failed\", \"error\": \"yt-dlp exited 1\"}",
                           &response);
         check(response.status_code == 200, "callback: failed is 200");
-        check(jobmap_get("cb-job-fail") == 0, "callback: failed job removed from map");
+        check(!jobset_contains("cb-job-fail"), "callback: failed job removed from set");
     }
 
-    /* --- delivery failure is still acknowledged --- */
+    /* --- callback is acknowledged even when no Telegram mock is running --- */
 
-    jobmap_put("cb-job-down", 42);
-    /* No mock is listening on 18932 now: telegram is unreachable. */
+    jobset_add("cb-job-down");
     dispatch_callback(&config,
-                      "{\"job_id\": \"cb-job-down\", \"chat_id\": 42, "
+                      "{\"job_id\": \"cb-job-down\", "
                       "\"status\": \"completed\", \"file_path\": \"/data/x.mp4\"}",
                       &response);
-    check(response.status_code == 200, "callback: unreachable telegram is 200");
-    check(jobmap_get("cb-job-down") == 0, "callback: job removed despite delivery failure");
+    check(response.status_code == 200, "callback: no Telegram mock is 200");
+    check(!jobset_contains("cb-job-down"), "callback: job removed after acknowledgment");
 }
 
 /* ---------- end-to-end helpers ---------- */

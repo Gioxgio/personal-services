@@ -147,8 +147,8 @@ static int json_escape_string(const char* src, char* dst, size_t dst_cap) {
 /* Build the callback request body into `out` (capacity `cap`).
  * file_path is included only when non-empty; error only when non-empty.
  * Returns the body length (excluding NUL), or -1 if it does not fit. */
-static int build_callback_body(const char* job_id, int chat_id, const char* status,
-                               const char* file_path, const char* error, char* out, size_t cap) {
+static int build_callback_body(const char* job_id, const char* status, const char* file_path,
+                               const char* error, char* out, size_t cap) {
     char e_job_id[128];
     char e_status[16];
     char e_file_path[PATH_MAX * 2 + 16];
@@ -176,9 +176,9 @@ static int build_callback_body(const char* job_id, int chat_id, const char* stat
     int n;
 
     n = snprintf(out + pos, cap - pos,
-                 "{\"job_id\": \"%s\", \"chat_id\": %d, \"source\": "
+                 "{\"job_id\": \"%s\", \"source\": "
                  "\"download-service\", \"status\": \"%s\"",
-                 e_job_id, chat_id, e_status);
+                 e_job_id, e_status);
     if (n < 0 || (size_t)n >= cap - pos)
         return -1;
     pos += (size_t)n;
@@ -357,7 +357,7 @@ static int parse_status(const char* headers) {
 
 /* ---------- public API ---------- */
 
-bool callback_send(const char* callback_url, const char* job_id, int chat_id, const char* status,
+bool callback_send(const char* callback_url, const char* job_id, const char* status,
                    const char* file_path, const char* error) {
     if (!callback_url || callback_url[0] == '\0')
         return true; /* no callback configured */
@@ -369,8 +369,7 @@ bool callback_send(const char* callback_url, const char* job_id, int chat_id, co
         return false;
 
     char body[CALLBACK_BODY_MAX];
-    int body_length =
-        build_callback_body(job_id, chat_id, status, file_path, error, body, sizeof(body));
+    int body_length = build_callback_body(job_id, status, file_path, error, body, sizeof(body));
     if (body_length < 0) {
         fprintf(stderr, "callback: failed to build request body\n");
         return false;

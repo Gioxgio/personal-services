@@ -121,7 +121,7 @@ int main(void) {
         pid_t pid = spawn_mock_download(18950, 200, "{\"job_id\": \"job-abc\"}");
 
         char job_id[37] = "";
-        int rc = download_submit(42, "https://youtu.be/xyz", job_id, sizeof(job_id));
+        int rc = download_submit("https://youtu.be/xyz", job_id, sizeof(job_id));
         check(rc == 0, "submit: 200 returns accepted");
         check(strcmp(job_id, "job-abc") == 0, "submit: job_id captured");
         waitpid(pid, NULL, 0);
@@ -133,7 +133,7 @@ int main(void) {
         pid_t pid = spawn_mock_download(18950, 400, "{\"error\": \"unsupported_domain\"}");
 
         char job_id[37] = "";
-        int rc = download_submit(42, "https://vimeo.com/123", job_id, sizeof(job_id));
+        int rc = download_submit("https://vimeo.com/123", job_id, sizeof(job_id));
         check(rc == 1, "submit: 400 unsupported_domain returns rejected");
         check(job_id[0] == '\0', "submit: job_id untouched on rejection");
         waitpid(pid, NULL, 0);
@@ -145,7 +145,7 @@ int main(void) {
         pid_t pid = spawn_mock_download(18950, 200, "{\"ok\": true}");
 
         char job_id[37] = "sentinel";
-        int rc = download_submit(42, "https://youtu.be/xyz", job_id, sizeof(job_id));
+        int rc = download_submit("https://youtu.be/xyz", job_id, sizeof(job_id));
         check(rc == -1, "submit: 200 without job_id is an error");
         check(strcmp(job_id, "sentinel") == 0, "submit: job_id untouched on error");
         waitpid(pid, NULL, 0);
@@ -157,7 +157,7 @@ int main(void) {
         pid_t pid = spawn_mock_download(18950, 500, "{\"error\": \"boom\"}");
 
         char job_id[37] = "";
-        int rc = download_submit(42, "https://youtu.be/xyz", job_id, sizeof(job_id));
+        int rc = download_submit("https://youtu.be/xyz", job_id, sizeof(job_id));
         check(rc == -1, "submit: 500 returns error");
         waitpid(pid, NULL, 0);
     }
@@ -166,18 +166,18 @@ int main(void) {
     {
         setenv("DOWNLOAD_SERVICE_URL", "http://127.0.0.1:18951/download", 1);
         char job_id[37] = "";
-        int rc = download_submit(42, "https://youtu.be/xyz", job_id, sizeof(job_id));
+        int rc = download_submit("https://youtu.be/xyz", job_id, sizeof(job_id));
         check(rc == -1, "submit: unreachable service returns error");
     }
 
-    /* Request body carries url and chat_id */
+    /* Request body carries the url and no chat id */
     {
         setenv("DOWNLOAD_TEST_BODY_FILE", "/tmp/opencode/download_body.txt", 1);
         setenv("DOWNLOAD_SERVICE_URL", "http://127.0.0.1:18950/download", 1);
         pid_t pid = spawn_mock_download(18950, 200, "{\"job_id\": \"job-body\"}");
 
         char job_id[37] = "";
-        int rc = download_submit(777, "https://youtube.com/watch?v=abc", job_id, sizeof(job_id));
+        int rc = download_submit("https://youtube.com/watch?v=abc", job_id, sizeof(job_id));
         check(rc == 0, "submit: body test accepted");
         waitpid(pid, NULL, 0);
 
@@ -188,8 +188,7 @@ int main(void) {
             size_t n = fread(body, 1, sizeof(body) - 1, f);
             body[n] = '\0';
             fclose(f);
-            check(strstr(body, "chat_id") != NULL && strstr(body, "777") != NULL,
-                  "submit: body contains chat_id");
+            check(strstr(body, "chat_id") == NULL, "submit: body has no chat_id");
             check(strstr(body, "youtube.com/watch?v=abc") != NULL, "submit: body contains url");
         }
     }

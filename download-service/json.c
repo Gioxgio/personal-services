@@ -1,7 +1,6 @@
 #include "json.h"
 
 #include <ctype.h>
-#include <limits.h>
 #include <string.h>
 
 static bool skip_string(const char** p) {
@@ -115,7 +114,6 @@ bool json_parse_download(const char* json_raw, download_payload_t* out_payload) 
 
     out_payload->url[0] = '\0';
     out_payload->format[0] = '\0';
-    out_payload->chat_id = 0;
 
     const char* p = json_raw;
 
@@ -302,18 +300,6 @@ bool json_parse_download(const char* json_raw, download_payload_t* out_payload) 
                 return false; /* unterminated string */
             p++;
             out_payload->format[len] = '\0';
-        } else if (strcmp(key, "chat_id") == 0) {
-            /* Expect a non-negative integer (JSON numbers are unquoted). */
-            if (*p < '0' || *p > '9')
-                return false;
-            long long value = 0;
-            while (*p >= '0' && *p <= '9') {
-                if (value > ((long long)INT_MAX - (*p - '0')) / 10)
-                    return false;
-                value = value * 10 + (*p - '0');
-                p++;
-            }
-            out_payload->chat_id = (int)value;
         } else {
             /* Skip non-target values (strings, numbers, objects, arrays). */
             if (!skip_value(&p))

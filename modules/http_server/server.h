@@ -58,11 +58,11 @@ void request_handler_dispatch(const server_config_t* config, const char* headers
 
 /*
  * Handle a single Telegram update (webhook or polling): if the text is a
- * `/download <url>` command, forward it to the download-service, record the
- * job_id -> chat_id mapping, and reply to the user. Non-/download messages are
+ * `/download <url>` command, forward it to the download-service, track the job
+ * id, and reply via the configured chat. Non-/download messages are
  * acknowledged silently. Safe to call from any context (HTTP thread or polling
  * thread).
  */
-void handle_update(const server_config_t* config, const char* chat_id, const char* text);
+void handle_update(const server_config_t* config, const char* text);
 
 #endif

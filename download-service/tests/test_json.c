@@ -34,36 +34,13 @@ int main(void) {
     /* format is optional and defaults to video */
     check(json_parse_download("{\"url\": \"https://youtu.be/abc\"}", &payload) &&
               strcmp(payload.url, "https://youtu.be/abc") == 0 &&
-              strcmp(payload.format, "video") == 0 && payload.chat_id == 0,
+              strcmp(payload.format, "video") == 0,
           "missing format defaults to video");
 
-    /* chat_id is optional and defaults to 0 */
-    check(json_parse_download("{\"url\": \"u\", \"format\": \"video\"}", &payload) &&
-              payload.chat_id == 0,
-          "missing chat_id defaults to 0");
-
-    /* chat_id is parsed and echoed (JSON number, unquoted) */
-    check(
-        json_parse_download("{\"url\": \"u\", \"format\": \"video\", \"chat_id\": 42}", &payload) &&
-            payload.chat_id == 42,
-        "chat_id parsed");
-
-    /* chat_id 0 is explicit and valid */
-    check(json_parse_download("{\"url\": \"u\", \"chat_id\": 0}", &payload) &&
-              payload.chat_id == 0 && strcmp(payload.format, "video") == 0,
-          "chat_id zero with default format");
-
-    /* chat_id as the first key also works */
-    check(json_parse_download("{\"chat_id\": 7, \"url\": \"u\"}", &payload) && payload.chat_id == 7,
-          "chat_id first key parsed");
-
-    /* A quoted chat_id (a string) is rejected */
-    check(!json_parse_download("{\"url\": \"u\", \"chat_id\": \"42\"}", &payload),
-          "quoted chat_id rejected");
-
-    /* Negative chat_id is rejected */
-    check(!json_parse_download("{\"url\": \"u\", \"chat_id\": -1}", &payload),
-          "negative chat_id rejected");
+    /* Unknown numeric fields are ignored like any other extra field. */
+    check(json_parse_download("{\"url\": \"u\", \"format\": \"video\", \"extra\": 42}", &payload) &&
+              strcmp(payload.url, "u") == 0,
+          "extra numeric field ignored");
 
     /* Reordered keys and whitespace */
     check(json_parse_download("  { \"format\" : \"audio\", \"url\" : \"http://example.com\" }  ",

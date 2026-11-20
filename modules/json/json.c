@@ -295,29 +295,6 @@ bool json_parse_request(const char* json_raw, notification_payload_t* out_payloa
             if (src_len == 0)
                 return false; /* source must be non-empty */
             found_source = true;
-        } else if (strcmp(key, "chat_id") == 0) {
-            /* Only accept chat_id when it is a JSON string; otherwise skip it. */
-            if (*p != '"') {
-                if (!skip_value(&p))
-                    return false;
-            } else {
-                p++;
-                size_t cid_len = 0;
-                while (*p && *p != '"') {
-                    if (*p == '\\') {
-                        p++;
-                        if (*p == '\0')
-                            return false;
-                    }
-                    if (cid_len < 32)
-                        out_payload->chat_id[cid_len++] = *p;
-                    p++;
-                }
-                if (*p != '"')
-                    return false;
-                p++;
-                out_payload->chat_id[cid_len] = '\0';
-            }
         } else {
             /* Skip non-message values (strings, numbers, objects, arrays, etc.) */
             if (!skip_value(&p))
@@ -520,9 +497,8 @@ bool json_find_top_level_int64(const char* json_raw, const char* key, long long*
     return json_read_number(&p, out);
 }
 
-bool json_extract_telegram_update(const char* json_raw, char* chat_id_out, size_t chat_id_cap,
-                                  char* text_out, size_t text_cap) {
-    if (!json_raw)
+bool json_extract_telegram_update(const char* json_raw, char* text_out, size_t text_cap) {
+    if (!json_raw || !text_out || text_cap == 0)
         return false;
 
     const char* p = json_raw;
@@ -538,32 +514,8 @@ bool json_extract_telegram_update(const char* json_raw, char* chat_id_out, size_
     if (*msg != '{')
         return false;
 
-    bool got_chat = false;
-    long long chat_id = 0;
-
     const char* q = msg;
-    if (json_object_find_value(&q, "chat") && *q == '{') {
-        const char* r = q;
-        if (json_object_find_value(&r, "id") && json_read_number(&r, &chat_id)) {
-            got_chat = true;
-            if (chat_id_out && chat_id_cap > 0) {
-                int n = snprintf(chat_id_out, chat_id_cap, "%lld", chat_id);
-                if (n < 0 || (size_t)n >= chat_id_cap)
-                    return false;
-            }
-        }
-    }
-
-    bool got_text = false;
-    q = msg;
-    if (text_out && text_cap > 0) {
-        if (json_object_find_value(&q, "text") && json_read_string(&q, text_out, text_cap))
-            got_text = true;
-    } else {
-        got_text = true;
-    }
-
-    return got_chat && got_text;
+    return json_object_find_value(&q, "text") && json_read_string(&q, text_out, text_cap);
 }
 
 int json_escape_string(const char* input, char* output, size_t output_size) {

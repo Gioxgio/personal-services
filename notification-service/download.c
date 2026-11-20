@@ -41,7 +41,7 @@ static size_t write_callback(void* contents, size_t size, size_t nmemb, void* us
     return total;
 }
 
-int download_submit(int64_t chat_id, const char* url, char* job_id_out, size_t job_id_cap) {
+int download_submit(const char* url, char* job_id_out, size_t job_id_cap) {
     if (!url || !job_id_out || job_id_cap == 0)
         return -1;
 
@@ -54,8 +54,7 @@ int download_submit(int64_t chat_id, const char* url, char* job_id_out, size_t j
         return -1;
 
     char body[DOWNLOAD_SUBMIT_BODY_MAX];
-    int n = snprintf(body, sizeof(body), "{\"url\": \"%s\", \"chat_id\": %lld}", e_url,
-                     (long long)chat_id);
+    int n = snprintf(body, sizeof(body), "{\"url\": \"%s\"}", e_url);
     if (n < 0 || (size_t)n >= sizeof(body))
         return -1;
 

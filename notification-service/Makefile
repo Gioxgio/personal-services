@@ -7,7 +7,7 @@ BUILD_DIR = build
 TARGET = $(BUILD_DIR)/notification-service
 
 # Local sources (service-specific).
-LOCAL_SRCS = main.c download.c jobmap.c
+LOCAL_SRCS = main.c download.c jobset.c
 # Cross-service modules (live in ../modules/).
 MODULE_SRCS = ../modules/json/json.c ../modules/http_server/server.c ../modules/telegram/telegram.c
 LOCAL_OBJS = $(addprefix $(BUILD_DIR)/,$(LOCAL_SRCS:.c=.o))
@@ -18,7 +18,7 @@ DEPS = $(OBJS:.o=.d)
 MODULE_CFLAGS = $(CFLAGS)
 
 TEST_SRCS = tests/test_json.c tests/test_telegram.c tests/test_server.c \
-            tests/test_download.c tests/test_jobmap.c
+            tests/test_download.c tests/test_jobset.c
 TEST_OBJS = $(TEST_SRCS:tests/%.c=$(BUILD_DIR)/%.o)
 TEST_DEPS = $(TEST_OBJS:.o=.d)
 TEST_CFLAGS = $(CFLAGS)
@@ -32,17 +32,17 @@ TEST_TELEGRAM_OBJS = $(BUILD_DIR)/test_telegram.o $(BUILD_DIR)/json.o
 TEST_SERVER_BIN    = $(BUILD_DIR)/test_server
 TEST_SERVER_OBJS   = $(BUILD_DIR)/test_server.o $(BUILD_DIR)/telegram.o \
                      $(BUILD_DIR)/json.o $(BUILD_DIR)/download.o \
-                     $(BUILD_DIR)/jobmap.o
+                     $(BUILD_DIR)/jobset.o
 
 TEST_DOWNLOAD_BIN  = $(BUILD_DIR)/test_download
 TEST_DOWNLOAD_OBJS = $(BUILD_DIR)/test_download.o $(BUILD_DIR)/download.o \
                      $(BUILD_DIR)/json.o
 
-TEST_JOBMAP_BIN    = $(BUILD_DIR)/test_jobmap
-TEST_JOBMAP_OBJS   = $(BUILD_DIR)/test_jobmap.o $(BUILD_DIR)/jobmap.o
+TEST_JOBSET_BIN    = $(BUILD_DIR)/test_jobset
+TEST_JOBSET_OBJS   = $(BUILD_DIR)/test_jobset.o $(BUILD_DIR)/jobset.o
 
 TEST_BINS = $(TEST_JSON_BIN) $(TEST_TELEGRAM_BIN) $(TEST_SERVER_BIN) \
-            $(TEST_DOWNLOAD_BIN) $(TEST_JOBMAP_BIN)
+            $(TEST_DOWNLOAD_BIN) $(TEST_JOBSET_BIN)
 
 all: $(TARGET) compile_commands.json
 
@@ -80,7 +80,7 @@ $(TEST_SERVER_BIN): $(TEST_SERVER_OBJS)
 $(TEST_DOWNLOAD_BIN): $(TEST_DOWNLOAD_OBJS)
 	$(CC) $^ -o $@ $(LDFLAGS)
 
-$(TEST_JOBMAP_BIN): $(TEST_JOBMAP_OBJS)
+$(TEST_JOBSET_BIN): $(TEST_JOBSET_OBJS)
 	$(CC) $^ -o $@
 
 test: $(TEST_BINS)
@@ -88,7 +88,7 @@ test: $(TEST_BINS)
 	$(TEST_TELEGRAM_BIN)
 	$(TEST_SERVER_BIN)
 	$(TEST_DOWNLOAD_BIN)
-	$(TEST_JOBMAP_BIN)
+	$(TEST_JOBSET_BIN)
 
 compile_commands.json: Makefile
 	@rm -f $@.tmp
@@ -112,7 +112,7 @@ compile_commands.json: Makefile
 clean:
 	rm -rf $(BUILD_DIR)
 	rm -f *.o *.d notification-service test_json test_telegram test_server \
-	    test_download test_jobmap
+	    test_download test_jobset
 
 -include $(DEPS) $(TEST_DEPS)
 

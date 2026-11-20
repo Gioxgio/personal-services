@@ -30,7 +30,6 @@ struct job {
     char job_id[37];     /* uuid + NUL */
     char url[4096 + 1];  /* request url */
     char format[16 + 1]; /* "audio" or "video" */
-    int chat_id;         /* originating chat, echoed in the callback */
     job_status_t status;
     char file_path[PATH_MAX];  /* set when status == JOB_COMPLETED */
     char error[256];           /* set when status == JOB_FAILED */
@@ -72,7 +71,7 @@ int worker_pool_dispatch(job_t* job);
 /* Allocate and initialize a job in the JOB_PENDING state. Returns NULL on
  * allocation failure; the caller owns the returned job until it is dispatched
  * (job_free) or hands it to the pool (the engine keeps it). */
-job_t* job_create(const char* url, int chat_id, const char* format);
+job_t* job_create(const char* url, const char* format);
 
 /* Release a job created with job_create() that was never dispatched. Safe on
  * NULL. Must not be called on a dispatched job while the pool still owns it. */

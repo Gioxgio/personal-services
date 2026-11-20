@@ -87,13 +87,13 @@ static bool file_contains(const char* path, const char* marker) {
 /* ---------- tests ---------- */
 
 static void test_job_create(void) {
-    job_t* job = job_create(NULL, 0, "video");
+    job_t* job = job_create(NULL, "video");
     check(job == NULL, "create: NULL url rejected");
 
-    job = job_create("", 7, "video");
+    job = job_create("", "video");
     check(job == NULL, "create: empty url rejected");
 
-    job = job_create("https://youtu.be/abc", 123, "audio");
+    job = job_create("https://youtu.be/abc", "audio");
     check(job != NULL, "create: valid job allocated");
     if (job != NULL) {
         check(strlen(job->job_id) == 36, "create: job_id is 36 chars");
@@ -101,13 +101,12 @@ static void test_job_create(void) {
                   job->job_id[23] == '-',
               "create: job_id has uuid hyphens");
         check(strcmp(job->url, "https://youtu.be/abc") == 0, "create: url stored");
-        check(job->chat_id == 123, "create: chat_id stored");
         check(strcmp(job->format, "audio") == 0, "create: format stored");
         check(job->status == JOB_PENDING, "create: initial state is pending");
         job_free(job);
     }
 
-    job = job_create("https://youtu.be/abc", 0, NULL);
+    job = job_create("https://youtu.be/abc", NULL);
     check(job != NULL, "create: NULL format defaults to video");
     if (job != NULL) {
         check(strcmp(job->format, "video") == 0, "create: default format video");
@@ -133,7 +132,7 @@ static void test_concurrent_downloads(void) {
     for (int i = 0; i < 4; i++) {
         char url[64];
         snprintf(url, sizeof url, "https://youtu.be/job%d", i);
-        jobs[i] = job_create(url, 100 + i, "video");
+        jobs[i] = job_create(url, "video");
         check(jobs[i] != NULL, "pool: job created");
     }
 
@@ -203,7 +202,7 @@ static void test_failed_download(void) {
                                    .storage_path = "/tmp/download-service-pool-fail-storage"};
     check(worker_pool_start(&config) == 0, "pool: start with concurrency 1");
 
-    job_t* job = job_create("https://youtu.be/bad", 55, "video");
+    job_t* job = job_create("https://youtu.be/bad", "video");
     check(job != NULL, "pool: failing job created");
     check(worker_pool_dispatch(job) == 0, "pool: failing job dispatched");
     worker_pool_wait_job(job);
@@ -232,8 +231,8 @@ static void test_serial_with_concurrency_one(void) {
                                    .storage_path = "/tmp/download-service-pool-serial-storage"};
     check(worker_pool_start(&config) == 0, "pool: start with concurrency 1");
 
-    job_t* job_a = job_create("https://youtu.be/serial-a", 1, "video");
-    job_t* job_b = job_create("https://youtu.be/serial-b", 2, "video");
+    job_t* job_a = job_create("https://youtu.be/serial-a", "video");
+    job_t* job_b = job_create("https://youtu.be/serial-b", "video");
     double start = now_seconds();
     worker_pool_dispatch(job_a);
     worker_pool_dispatch(job_b);

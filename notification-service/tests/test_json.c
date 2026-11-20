@@ -28,7 +28,7 @@ int main() {
               strcmp(payload.message, "hi") == 0 && strcmp(payload.source, "t") == 0,
           "Whitespace");
 
-    check(json_parse_request("{\"chat_id\": 123, \"message\": \"test\", \"source\": \"s\", \"other\": true}",
+    check(json_parse_request("{\"extra\": 123, \"message\": \"test\", \"source\": \"s\", \"other\": true}",
                              &payload) &&
               strcmp(payload.message, "test") == 0 && strcmp(payload.source, "s") == 0,
           "Multiple fields");
@@ -169,43 +169,39 @@ int main() {
 
     // --- json_extract_telegram_update ---
     {
-        char chat[32];
         char text[256];
 
         check(json_extract_telegram_update("{\"update_id\": 1,\"message\":{\"message_id\":5,"
                                            "\"chat\":{\"id\":42,\"type\":\"private\"},"
                                            "\"text\":\"/download https://youtu.be/xyz\"}}",
-                                           chat, sizeof(chat), text, sizeof(text)) &&
-                  strcmp(chat, "42") == 0 && strcmp(text, "/download https://youtu.be/xyz") == 0,
-              "extract_update: chat id and text");
+                                           text, sizeof(text)) &&
+                  strcmp(text, "/download https://youtu.be/xyz") == 0,
+              "extract_update: text extracted");
 
-        /* Member order is not assumed. */
+        /* Member order is not assumed; the chat object is irrelevant. */
         check(json_extract_telegram_update("{\"update_id\": 2,\"message\":{\"text\":\"hi\","
                                            "\"chat\":{\"id\":7,\"type\":\"group\"}}}",
-                                           chat, sizeof(chat), text, sizeof(text)) &&
-                  strcmp(chat, "7") == 0 && strcmp(text, "hi") == 0,
+                                           text, sizeof(text)) &&
+                  strcmp(text, "hi") == 0,
               "extract_update: member order independent");
 
-        /* Negative chat id (supergroup/channel). */
-        check(
-            json_extract_telegram_update("{\"update_id\": 3,\"message\":{\"chat\":{\"id\":-100123},"
-                                         "\"text\":\"hello\"}}",
-                                         chat, sizeof(chat), text, sizeof(text)) &&
-                strcmp(chat, "-100123") == 0 && strcmp(text, "hello") == 0,
-            "extract_update: negative chat id");
+        /* No chat object: text is still extracted. */
+        check(json_extract_telegram_update("{\"update_id\": 3,\"message\":{\"text\":\"hello\"}}",
+                                           text, sizeof(text)) &&
+                  strcmp(text, "hello") == 0,
+              "extract_update: chat object not required");
 
         /* Missing text -> false. */
         check(!json_extract_telegram_update("{\"update_id\": 4,\"message\":{\"chat\":{\"id\":1}}}",
-                                            chat, sizeof(chat), text, sizeof(text)),
+                                            text, sizeof(text)),
               "extract_update: missing text is false");
 
-        /* Missing chat -> false. */
-        check(!json_extract_telegram_update("{\"update_id\": 5,\"message\":{\"text\":\"hello\"}}",
-                                            chat, sizeof(chat), text, sizeof(text)),
-              "extract_update: missing chat is false");
+        /* Missing message object -> false. */
+        check(!json_extract_telegram_update("{\"update_id\": 5}", text, sizeof(text)),
+              "extract_update: missing message is false");
 
         /* Not an update -> false. */
-        check(!json_extract_telegram_update("not json", chat, sizeof(chat), text, sizeof(text)),
+        check(!json_extract_telegram_update("not json", text, sizeof(text)),
               "extract_update: not json is false");
     }
 

@@ -212,29 +212,29 @@ static bool stub_wait_done(void) {
 
 static void test_no_callback_configured(void) {
     /* NULL or empty URL: no-op, reported as success, no network. */
-    check(callback_send(NULL, "job-1", 1, "completed", NULL, NULL),
+    check(callback_send(NULL, "job-1", "completed", NULL, NULL),
           "NULL callback URL is a no-op success");
-    check(callback_send("", "job-1", 1, "completed", NULL, NULL),
+    check(callback_send("", "job-1", "completed", NULL, NULL),
           "empty callback URL is a no-op success");
 
     /* https has no TLS support in this service: rejected without connecting. */
-    check(callback_send("https://127.0.0.1:18942/x", "job-1", 1, "completed", NULL, NULL) == false,
+    check(callback_send("https://127.0.0.1:18942/x", "job-1", "completed", NULL, NULL) == false,
           "https URL is rejected");
 
     /* Out-of-range port: rejected at parse time. */
-    check(callback_send("http://127.0.0.1:99999/x", "job-1", 1, "completed", NULL, NULL) == false,
+    check(callback_send("http://127.0.0.1:99999/x", "job-1", "completed", NULL, NULL) == false,
           "out-of-range port is rejected");
 
     /* Connection refused: reported as failure, quickly (localhost). */
-    check(callback_send("http://127.0.0.1:1/x", "job-1", 1, "completed", NULL, NULL) == false,
+    check(callback_send("http://127.0.0.1:1/x", "job-1", "completed", NULL, NULL) == false,
           "connection refused is a failure");
 }
 
 static void test_completed_job(void) {
     stub_start(STUB_PORT_200, 200);
 
-    bool ok = callback_send("http://127.0.0.1:18942/callback/download", "test-job-123", 42,
-                            "completed", "/data/downloads/abc/x.mp4", NULL);
+    bool ok = callback_send("http://127.0.0.1:18942/callback/download", "test-job-123", "completed",
+                            "/data/downloads/abc/x.mp4", NULL);
     check(ok, "completed job: callback_send returns true");
     check(stub_wait_done(), "completed job: stub received the request");
 
@@ -246,7 +246,6 @@ static void test_completed_job(void) {
 
     check(strstr(stub_body, "\"job_id\": \"test-job-123\"") != NULL,
           "completed job: body has job_id");
-    check(strstr(stub_body, "\"chat_id\": 42") != NULL, "completed job: body has chat_id");
     check(strstr(stub_body, "\"status\": \"completed\"") != NULL, "completed job: body has status");
     check(strstr(stub_body, "\"file_path\": \"/data/downloads/abc/x.mp4\"") != NULL,
           "completed job: body has file_path");
@@ -258,7 +257,7 @@ static void test_completed_job(void) {
 static void test_failed_job(void) {
     stub_start(STUB_PORT_500, 200);
 
-    bool ok = callback_send("http://127.0.0.1:18943/callback/download", "test-job-456", 7, "failed",
+    bool ok = callback_send("http://127.0.0.1:18943/callback/download", "test-job-456", "failed",
                             NULL, "download failed for https://youtu.be/x");
     check(ok, "failed job: callback_send returns true");
     check(stub_wait_done(), "failed job: stub received the request");
@@ -275,8 +274,8 @@ static void test_failed_job(void) {
 static void test_non_2xx(void) {
     stub_start(STUB_PORT_FAILED, 500);
 
-    bool ok = callback_send("http://127.0.0.1:18944/callback/download", "test-job-789", 9,
-                            "completed", "/tmp/f.mp4", NULL);
+    bool ok = callback_send("http://127.0.0.1:18944/callback/download", "test-job-789", "completed",
+                            "/tmp/f.mp4", NULL);
     check(ok == false, "non-2xx response is a failure");
     check(stub_wait_done(), "non-2xx: stub received the request");
     check(strstr(stub_request, "POST /callback/download HTTP/1.1") != NULL,

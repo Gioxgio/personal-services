@@ -119,7 +119,7 @@ static void usage(const char* reason) {
             "callbacks.\n"
             "\n"
             "Routes:\n"
-            "  POST %s   {\"url\": \"...\", \"chat_id\": 123}\n"
+            "  POST %s   {\"url\": \"...\"}\n"
             "             -> {\"job_id\": \"uuid\"} or 400 {\"error\": "
             "\"unsupported_domain\"}\n",
             PROG_NAME, DOWNLOAD_PATH);

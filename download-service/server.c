@@ -338,8 +338,7 @@ static void handle_download(const server_config_t* config, int client_fd, const 
         return;
     }
 
-    fprintf(stderr, "download-service: call received chat_id=%d url=%s\n",
-            payload.chat_id, payload.url);
+    fprintf(stderr, "download-service: call received url=%s\n", payload.url);
 
     if (!is_supported(payload.url, &config->allowed_domains)) {
         int written =
@@ -355,7 +354,7 @@ static void handle_download(const server_config_t* config, int client_fd, const 
 
     const char* format = payload.format[0] == '\0' ? "video" : payload.format;
 
-    job_t* job = job_create(payload.url, payload.chat_id, format);
+    job_t* job = job_create(payload.url, format);
     if (!job) {
         set_response(response, 500);
         return;

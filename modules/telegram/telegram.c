@@ -46,11 +46,8 @@ int telegram_send_message(const telegram_config_t* config, const notification_pa
     if (n < 0 || (size_t)n >= sizeof(formatted)) {
         n = snprintf(formatted, sizeof(formatted), "%s", payload->message);
     }
-    /* Use the payload's chat_id if provided, otherwise fall back to the
-     * configured target chat. This keeps telegram_send_message() as the single
-     * write path while allowing per-message chat targeting (e.g. callbacks). */
-    const char* target_chat = payload->chat_id[0] ? payload->chat_id : config->chat_id;
-    return telegram_send_raw(config->token, target_chat, formatted, response_out,
+    /* All messages go to the chat configured for this service. */
+    return telegram_send_raw(config->token, config->chat_id, formatted, response_out,
                              response_capacity);
 }
 
