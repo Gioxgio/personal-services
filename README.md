@@ -27,6 +27,7 @@ Single repository merging `download-service`, `notification-service` and
 │   ├── http_client/        # HTTP client (POST, file upload)
 │   ├── http_server/        # HTTP server (POST)
 │   ├── json/               # JSON serializer
+│   ├── filename/           # sanitizer shared by live slugs and download titles
 │   ├── scrape/             # itch.io / forum.lewdzone scraping (stub, not implemented yet)
 │   └── telegram/           # Telegram abstraction
 ├── download-service/       # service (own json.c - different API from modules/json)

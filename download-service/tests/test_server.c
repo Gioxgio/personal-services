@@ -367,7 +367,8 @@ static void test_end_to_end(void) {
           "done\n"
           "dir=\"${out%/*}\"\n"
           "mkdir -p \"$dir\"\n"
-          "printf 'FAKE-VIDEO-CONTENT' > \"$dir/dummy.mp4\"\n"
+          "printf 'partial' > \"$dir/leftover.mp4.part\"\n"
+          "printf 'FAKE-VIDEO-CONTENT' > \"$dir/My Video: Title? [4K].mp4\"\n"
           "exit 0\n",
           fake);
     fclose(fake);
@@ -412,6 +413,21 @@ static void test_end_to_end(void) {
     check(wait_for_downloaded_file("/tmp/download-service-e2e-pool", "FAKE-VIDEO-CONTENT", 5),
           "e2e: worker downloaded the file to disk");
 
+    /* The file endpoint advertises the sanitized title as the filename. */
+    char file_request[512];
+    snprintf(file_request, sizeof file_request,
+             "GET /file/%s HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n", job_id);
+    bool advertised = false;
+    for (int i = 0; i < 20 && !advertised; i++) {
+        ssize_t fn = http_exchange(SERVER_PORT, file_request, strlen(file_request), response,
+                                   sizeof response);
+        advertised = fn > 0 && response_status(response) == 200 &&
+                     strstr(response, "filename=\"My_Video__Title___4K_.mp4\"") != NULL;
+        if (!advertised)
+            sleep_ms(50);
+    }
+    check(advertised, "e2e: file response advertises the title-based filename");
+
     /* --- shutdown --- */
     kill(server_pid, SIGTERM);
     waitpid(server_pid, NULL, 0);
@@ -442,7 +458,8 @@ int main(void) {
           "done\n"
           "dir=\"${out%/*}\"\n"
           "mkdir -p \"$dir\"\n"
-          "printf 'FAKE-VIDEO-CONTENT' > \"$dir/dummy.mp4\"\n"
+          "printf 'partial' > \"$dir/leftover.mp4.part\"\n"
+          "printf 'FAKE-VIDEO-CONTENT' > \"$dir/My Video: Title? [4K].mp4\"\n"
           "exit 0\n",
           fake);
     fclose(fake);

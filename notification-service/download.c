@@ -4,14 +4,17 @@
 
 #include "download.h"
 
+#include "../modules/filename/filename.h"
 #include "json.h"
 
 #include <curl/curl.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 #define DEFAULT_DOWNLOAD_SERVICE_URL "http://127.0.0.1:8080/download"
@@ -115,37 +118,69 @@ int download_submit(const char* url, char* job_id_out, size_t job_id_cap) {
 
 /*
  * Fetch `url` (a downloaded file served by the download-service) into a
- * temporary file and return its path in `out_path` (capacity `out_cap`).
- * The caller is responsible for removing the temp file once it has been sent.
- * Returns 0 on success, -1 on failure.
+ * temporary file named after the recipient-visible filename. A unique parent
+ * directory keeps concurrent fetches of the same title apart, so the base name
+ * can stay exactly what the user should see.
  */
-int download_fetch_to_file(const char* url, char* out_path, size_t out_cap) {
+int download_fetch_to_file(const char* url, const char* filename, char* out_path, size_t out_cap) {
     if (!url || !out_path || out_cap == 0)
         return -1;
 
-    /* Build a unique temp file path under /tmp. */
-    pid_t pid = getpid();
-    for (int i = 0; i < 1000; i++) {
-        int n = snprintf(out_path, out_cap, "/tmp/dl-fetch.%ld.%d.part", (long)pid, i);
-        if (n < 0 || (size_t)n >= out_cap)
-            return -1;
-        FILE* f = fopen(out_path, "wx");
-        if (f) {
-            /* File created; close it and re-open for curl below. */
-            fclose(f);
-            break;
-        }
-        if (errno != EEXIST)
-            return -1;
+    char* clean = sanitize_filename_keep_extension(filename && filename[0] ? filename : "download");
+    if (!clean)
+        return -1;
+    size_t clean_len = strlen(clean);
+    if (clean_len > 200) {
+        /* Keep the extension when trimming an unusually long title. */
+        const char* dot = strrchr(clean, '.');
+        size_t ext_len = (dot && dot != clean) ? strlen(dot) : 0;
+        if (ext_len > 10)
+            ext_len = 0;
+        memmove(clean + 200 - ext_len, clean + clean_len - ext_len, ext_len + 1);
     }
 
-    CURL* curl = curl_easy_init();
-    if (!curl)
+    pid_t pid = getpid();
+    bool created = false;
+    for (int i = 0; i < 1000; i++) {
+        char dir[PATH_MAX];
+        int n = snprintf(dir, sizeof dir, "/tmp/dl-fetch.%ld.%d", (long)pid, i);
+        if (n < 0 || (size_t)n >= sizeof dir)
+            break;
+        if (mkdir(dir, 0700) != 0) {
+            if (errno == EEXIST)
+                continue;
+            break;
+        }
+        n = snprintf(out_path, out_cap, "%s/%s", dir, clean);
+        if (n < 0 || (size_t)n >= out_cap) {
+            (void)rmdir(dir);
+            break;
+        }
+        FILE* probe = fopen(out_path, "wx");
+        if (probe) {
+            fclose(probe);
+            created = true;
+            break;
+        }
+        int saved_errno = errno;
+        (void)rmdir(dir);
+        if (saved_errno != EEXIST)
+            break;
+    }
+    free(clean);
+    if (!created)
         return -1;
+
+    CURL* curl = curl_easy_init();
+    if (!curl) {
+        download_fetch_cleanup(out_path);
+        return -1;
+    }
 
     FILE* f = fopen(out_path, "wb");
     if (!f) {
         curl_easy_cleanup(curl);
+        download_fetch_cleanup(out_path);
         return -1;
     }
 
@@ -164,8 +199,25 @@ int download_fetch_to_file(const char* url, char* out_path, size_t out_cap) {
     curl_easy_cleanup(curl);
 
     if (res != CURLE_OK || http_code < 200 || http_code >= 300) {
-        remove(out_path);
+        download_fetch_cleanup(out_path);
         return -1;
     }
     return 0;
+}
+
+void download_fetch_cleanup(const char* path) {
+    if (!path || path[0] == '\0')
+        return;
+
+    (void)remove(path);
+    const char* slash = strrchr(path, '/');
+    if (slash && slash != path) {
+        char dir[PATH_MAX];
+        size_t len = (size_t)(slash - path);
+        if (len < sizeof dir) {
+            memcpy(dir, path, len);
+            dir[len] = '\0';
+            (void)rmdir(dir);
+        }
+    }
 }

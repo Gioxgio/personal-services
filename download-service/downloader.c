@@ -4,6 +4,8 @@
 
 #include "downloader.h"
 
+#include "../modules/filename/filename.h"
+
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -75,9 +77,16 @@ static void dirname_of(const char* path, char* out, size_t cap) {
     out[len] = '\0';
 }
 
+/* yt-dlp's in-progress names: never hand one of these to the user. */
+static bool is_partial_download(const char* name) {
+    size_t len = strlen(name);
+    return (len >= 5 && strcmp(name + len - 5, ".part") == 0) ||
+           (len >= 5 && strcmp(name + len - 5, ".ytdl") == 0);
+}
+
 /*
- * Scan `dir` for the first regular, non-hidden file and copy its full path
- * into `out` (capacity `cap`). Returns true on success.
+ * Scan `dir` for the first regular, non-hidden, completed file and copy its
+ * full path into `out` (capacity `cap`). Returns true on success.
  */
 static bool find_downloaded_file(const char* dir, char* out, size_t cap) {
     DIR* d = opendir(dir);
@@ -87,7 +96,7 @@ static bool find_downloaded_file(const char* dir, char* out, size_t cap) {
     struct dirent* e;
     bool found = false;
     while ((e = readdir(d)) != NULL) {
-        if (e->d_name[0] == '.')
+        if (e->d_name[0] == '.' || is_partial_download(e->d_name))
             continue;
         char full[PATH_MAX];
         int n = snprintf(full, sizeof full, "%s/%s", dir, e->d_name);
@@ -110,6 +119,31 @@ static bool find_downloaded_file(const char* dir, char* out, size_t cap) {
 out:
     closedir(d);
     return found;
+}
+
+/*
+ * Rename yt-dlp's <title>.<ext> output to <sanitized title>.<ext>, using the
+ * same character rule as stream-sniper's live filenames. The file lives in a
+ * private temp directory, so a collision with another job is impossible.
+ */
+static bool name_by_title(const char* path, char* out_path, size_t out_cap) {
+    const char* slash = strrchr(path, '/');
+    const char* base = slash ? slash + 1 : path;
+    char* clean = sanitize_filename_keep_extension(base);
+    if (!clean)
+        return false;
+
+    size_t dir_len = slash ? (size_t)(slash - path) + 1 : 0;
+    char new_path[PATH_MAX];
+    int n = snprintf(new_path, sizeof new_path, "%.*s%s", (int)dir_len, path, clean);
+    free(clean);
+    if (n < 0 || (size_t)n >= sizeof new_path || (size_t)n >= out_cap)
+        return false;
+
+    if (rename(path, new_path) != 0)
+        return false;
+    memcpy(out_path, new_path, (size_t)n + 1);
+    return true;
 }
 
 /* Recursively remove `path` (a file or a directory tree). */
@@ -171,7 +205,7 @@ int download_media(const char* yt_dlp_path, const char* download_dir, const char
         argv[ai++] = (char*)"-x"; /* audio only */
     }
     char output[PATH_MAX];
-    int n = snprintf(output, sizeof output, "%s/%%(id)s.%%(ext)s", temp_dir);
+    int n = snprintf(output, sizeof output, "%s/%%(title)s.%%(ext)s", temp_dir);
     if (n < 0 || (size_t)n >= sizeof output) {
         remove_tree(temp_dir);
         return -1;
@@ -211,7 +245,8 @@ int download_media(const char* yt_dlp_path, const char* download_dir, const char
         return -1;
     }
 
-    if (!find_downloaded_file(temp_dir, out_path, out_cap)) {
+    if (!find_downloaded_file(temp_dir, out_path, out_cap) ||
+        !name_by_title(out_path, out_path, out_cap)) {
         remove_tree(temp_dir);
         return -1;
     }

@@ -7,7 +7,9 @@
 FROM debian:bookworm-slim AS download-builder
 RUN apt-get update && apt-get install -y --no-install-recommends build-essential && rm -rf /var/lib/apt/lists/*
 WORKDIR /src
-COPY download-service /src
+COPY download-service /src/download-service
+COPY modules /src/modules
+WORKDIR /src/download-service
 RUN make -j"$(nproc)"
 
 FROM debian:bookworm-slim AS download-service
@@ -16,7 +18,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
  && useradd --system --home-dir /nonexistent --shell /usr/sbin/nologin download || true \
  && mkdir -p /var/lib/download-service && chown -R download:download /var/lib/download-service
 WORKDIR /var/lib/download-service
-COPY --from=download-builder /src/build/download-service /usr/local/bin/download-service
+COPY --from=download-builder /src/download-service/build/download-service /usr/local/bin/download-service
 ENV PORT=8080 DOWNLOAD_STORAGE_PATH=/var/lib/download-service YTDLP_PATH=/usr/local/bin/yt-dlp CALLBACK_URL=http://notification-service:8080/callback/download
 EXPOSE 8080
 USER download

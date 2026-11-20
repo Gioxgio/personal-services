@@ -228,9 +228,9 @@ static void* record_thread(void* arg) {
     }
     mkdir_p(dir);
 
+    /* Live files are named date + title; no %(time)s component. */
     char tmpl[PATH_MAX + TMPL_SUFFIX_MAX];
-    int tn =
-        snprintf(tmpl, sizeof tmpl, "%s/%%(upload_date)s_%%(time)s_%%(title).80s.%%(ext)s", dir);
+    int tn = snprintf(tmpl, sizeof tmpl, "%s/%%(upload_date)s_%%(title).80s.%%(ext)s", dir);
     if (tn < 0 || (size_t)tn >= sizeof tmpl) {
         logmsg(LOG_ERROR, "%s: output template too long, skipping", ch->slug);
         free(slot->stream_url);

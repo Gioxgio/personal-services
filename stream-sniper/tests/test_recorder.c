@@ -330,6 +330,15 @@ static char* record_once(bool expect_wrapper) {
         CHECK(strstr(argv, "\n" STREAM_URL "\n") != NULL);
         CHECK(strstr(argv, g_ch.url) == NULL);
         CHECK(expect_wrapper == (strstr(argv, "--ffmpeg-location") != NULL));
+
+        /* The -o template names live files by date + title, without time. */
+        char* out = in_root("out");
+        char want[TEST_PATH];
+        snprintf(want, sizeof want, "-o\n%s/%s/%%(upload_date)s_%%(title).80s.%%(ext)s\n", out,
+                 g_ch.slug);
+        CHECK(strstr(argv, want) != NULL);
+        CHECK(strstr(argv, "%%(time)s") == NULL);
+        free(out);
     }
 
     free(started);

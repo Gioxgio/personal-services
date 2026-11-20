@@ -1,5 +1,6 @@
 #include "util.h"
 
+#include "../modules/filename/filename.h"
 #include "log.h"
 
 #include <ctype.h>
@@ -55,17 +56,12 @@ void strip_spaces(char* s) {
 }
 
 char* sanitise(const char* s) {
-    /* +2, not +1: the '_' fallback below can add a character the
-     * source string did not have, and its NUL must still fit. */
-    char* out = xmalloc(strlen(s) + 2);
-    size_t j = 0;
-    for (const char* p = s; *p; p++) {
-        unsigned char c = (unsigned char)*p;
-        out[j++] = (isalnum(c) || c == '-' || c == '_') ? (char)c : '_';
+    /* Same rule as download-service filenames: ../modules/filename/filename.c */
+    char* out = sanitize_filename(s);
+    if (!out) {
+        logmsg(LOG_ERROR, "out of memory");
+        exit(EXIT_FAILURE);
     }
-    if (j == 0)
-        out[j++] = '_';
-    out[j] = '\0';
     return out;
 }
 

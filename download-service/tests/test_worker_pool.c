@@ -44,7 +44,9 @@ static const char* ok_script = "#!/bin/sh\n"
                                "dir=\"${out%/*}\"\n"
                                "mkdir -p \"$dir\"\n"
                                "sleep \"${FAKE_YTDLP_SLEEP:-0.3}\"\n"
-                               "printf 'FAKE-POOL-CONTENT' > \"$dir/dummy.mp4\"\n"
+                               "printf 'partial' > \"$dir/leftover.mp4.part\"\n"
+                               "printf 'FAKE-POOL-CONTENT' > "
+                               "\"$dir/My Video: Title? [4K].mp4\"\n"
                                "exit 0\n";
 
 static const char* fail_script = "#!/bin/sh\nexit 1\n";
@@ -179,6 +181,9 @@ static void test_concurrent_downloads(void) {
         check(have && strncmp(path, config.storage_path, strlen(config.storage_path)) == 0, m);
         check(have && file_contains(path, "FAKE-POOL-CONTENT"),
               "pool: downloaded content streamed to disk");
+        check(have && strstr(path, "/My_Video__Title___4K_.mp4") != NULL,
+              "pool: file named after sanitized title");
+        check(have && strstr(path, ".part") == NULL, "pool: served file is not a .part file");
     }
 
     worker_pool_stop();

@@ -7,12 +7,16 @@ BUILD_DIR = build
 TARGET = $(BUILD_DIR)/download-service
 
 SRCS = main.c server.c downloader.c json.c allowlist.c worker_pool.c callback.c notify.c
-OBJS = $(SRCS:%.c=$(BUILD_DIR)/%.o) $(MODULE_NOTIFY_OBJ)
+OBJS = $(SRCS:%.c=$(BUILD_DIR)/%.o) $(MODULE_NOTIFY_OBJ) $(MODULE_FILENAME_OBJ)
 DEPS = $(OBJS:.o=.d)
 
 # Shared outbound-notification module (lives under modules/).
 MODULE_NOTIFY_SRC = ../modules/notify/notify.c
 MODULE_NOTIFY_OBJ = $(BUILD_DIR)/modules_notify.o
+
+# Shared filename sanitizer (same rule as stream-sniper's channel slugs).
+MODULE_FILENAME_SRC = ../modules/filename/filename.c
+MODULE_FILENAME_OBJ = $(BUILD_DIR)/filename.o
 
 TEST_SRCS = tests/test_json.c tests/test_server.c tests/test_allowlist.c \
             tests/test_worker_pool.c tests/test_callback.c
@@ -27,7 +31,7 @@ TEST_SERVER_BIN    = $(BUILD_DIR)/test_server
 TEST_SERVER_OBJS   = $(BUILD_DIR)/test_server.o $(BUILD_DIR)/downloader.o \
                      $(BUILD_DIR)/json.o $(BUILD_DIR)/worker_pool.o \
                      $(BUILD_DIR)/allowlist.o $(BUILD_DIR)/callback.o \
-                     $(BUILD_DIR)/notify.o $(MODULE_NOTIFY_OBJ)
+                     $(BUILD_DIR)/notify.o $(MODULE_NOTIFY_OBJ) $(MODULE_FILENAME_OBJ)
 
 TEST_ALLOWLIST_BIN   = $(BUILD_DIR)/test_allowlist
 TEST_ALLOWLIST_OBJS  = $(BUILD_DIR)/test_allowlist.o $(BUILD_DIR)/allowlist.o
@@ -35,7 +39,7 @@ TEST_ALLOWLIST_OBJS  = $(BUILD_DIR)/test_allowlist.o $(BUILD_DIR)/allowlist.o
 TEST_WORKER_POOL_BIN   = $(BUILD_DIR)/test_worker_pool
 TEST_WORKER_POOL_OBJS  = $(BUILD_DIR)/test_worker_pool.o $(BUILD_DIR)/worker_pool.o \
                          $(BUILD_DIR)/downloader.o $(BUILD_DIR)/callback.o \
-                         $(BUILD_DIR)/notify.o $(MODULE_NOTIFY_OBJ)
+                         $(BUILD_DIR)/notify.o $(MODULE_NOTIFY_OBJ) $(MODULE_FILENAME_OBJ)
 
 TEST_CALLBACK_BIN   = $(BUILD_DIR)/test_callback
 TEST_CALLBACK_OBJS  = $(BUILD_DIR)/test_callback.o
@@ -51,6 +55,9 @@ $(TARGET): $(OBJS)
 # Shared module: compile from modules/notify/ (not covered by the pattern rule
 # above since the source lives outside this directory).
 $(MODULE_NOTIFY_OBJ): $(MODULE_NOTIFY_SRC) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(MODULE_FILENAME_OBJ): $(MODULE_FILENAME_SRC) | $(BUILD_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(BUILD_DIR)/%.o: %.c | $(BUILD_DIR)
@@ -91,7 +98,7 @@ compile_commands.json: Makefile
 	@rm -f $@.tmp
 	@printf '[\n' > $@.tmp
 	@first=1; \
-	for f in $(SRCS) $(MODULE_NOTIFY_SRC) $(TEST_SRCS); do \
+	for f in $(SRCS) $(MODULE_NOTIFY_SRC) $(MODULE_FILENAME_SRC) $(TEST_SRCS); do \
 		case "$$f" in tests/*) flags='$(TEST_CFLAGS)' ;; *) flags='$(CFLAGS)' ;; esac; \
 		[ $$first -eq 0 ] && printf ',\n' >> $@.tmp; \
 		first=0; \

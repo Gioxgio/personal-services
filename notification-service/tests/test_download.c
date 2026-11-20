@@ -193,6 +193,40 @@ int main(void) {
         }
     }
 
+    printf("\n=== download_fetch_to_file tests ===\n");
+
+    /* A fetched file is named after the title, not a .part temp name. */
+    {
+        pid_t pid = spawn_mock_download(18952, 200, "FETCHED-CONTENT");
+        char path[4096] = "";
+        int rc = download_fetch_to_file("http://127.0.0.1:18952/file/job-abc",
+                                        "My Video: Title? [4K].mp4", path, sizeof(path));
+        check(rc == 0, "fetch: 200 returns a temp file");
+        check(strstr(path, "/My_Video__Title___4K_.mp4") != NULL,
+              "fetch: temp file carries the sanitized title");
+        check(strstr(path, ".part") == NULL, "fetch: temp file is not .part");
+
+        FILE* f = fopen(path, "rb");
+        check(f != NULL, "fetch: temp file can be opened");
+        if (f) {
+            char buf[64] = "";
+            size_t n = fread(buf, 1, sizeof(buf) - 1, f);
+            buf[n] = '\0';
+            check(strcmp(buf, "FETCHED-CONTENT") == 0, "fetch: body written to temp file");
+            fclose(f);
+        }
+
+        char dir[4096];
+        snprintf(dir, sizeof dir, "%s", path);
+        char* slash = strrchr(dir, '/');
+        if (slash)
+            *slash = '\0';
+        download_fetch_cleanup(path);
+        check(access(path, F_OK) != 0, "fetch: cleanup removes the temp file");
+        check(access(dir, F_OK) != 0, "fetch: cleanup removes the temp directory");
+        waitpid(pid, NULL, 0);
+    }
+
     printf("\n%d passed, %d failed\n", passed, failed);
     return failed > 0 ? 1 : 0;
 }

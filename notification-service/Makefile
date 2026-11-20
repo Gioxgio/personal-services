@@ -9,7 +9,8 @@ TARGET = $(BUILD_DIR)/notification-service
 # Local sources (service-specific).
 LOCAL_SRCS = main.c download.c jobset.c
 # Cross-service modules (live in ../modules/).
-MODULE_SRCS = ../modules/json/json.c ../modules/http_server/server.c ../modules/telegram/telegram.c
+MODULE_SRCS = ../modules/json/json.c ../modules/http_server/server.c \
+              ../modules/telegram/telegram.c ../modules/filename/filename.c
 LOCAL_OBJS = $(addprefix $(BUILD_DIR)/,$(LOCAL_SRCS:.c=.o))
 MODULE_OBJS = $(addprefix $(BUILD_DIR)/,$(notdir $(MODULE_SRCS:.c=.o)))
 OBJS = $(LOCAL_OBJS) $(MODULE_OBJS)
@@ -32,11 +33,11 @@ TEST_TELEGRAM_OBJS = $(BUILD_DIR)/test_telegram.o $(BUILD_DIR)/json.o
 TEST_SERVER_BIN    = $(BUILD_DIR)/test_server
 TEST_SERVER_OBJS   = $(BUILD_DIR)/test_server.o $(BUILD_DIR)/telegram.o \
                      $(BUILD_DIR)/json.o $(BUILD_DIR)/download.o \
-                     $(BUILD_DIR)/jobset.o
+                     $(BUILD_DIR)/jobset.o $(BUILD_DIR)/filename.o
 
 TEST_DOWNLOAD_BIN  = $(BUILD_DIR)/test_download
 TEST_DOWNLOAD_OBJS = $(BUILD_DIR)/test_download.o $(BUILD_DIR)/download.o \
-                     $(BUILD_DIR)/json.o
+                     $(BUILD_DIR)/json.o $(BUILD_DIR)/filename.o
 
 TEST_JOBSET_BIN    = $(BUILD_DIR)/test_jobset
 TEST_JOBSET_OBJS   = $(BUILD_DIR)/test_jobset.o $(BUILD_DIR)/jobset.o
@@ -59,6 +60,8 @@ $(BUILD_DIR)/json.o: ../modules/json/json.c | $(BUILD_DIR)
 $(BUILD_DIR)/server.o: ../modules/http_server/server.c | $(BUILD_DIR)
 	$(CC) $(MODULE_CFLAGS) -c $< -o $@
 $(BUILD_DIR)/telegram.o: ../modules/telegram/telegram.c | $(BUILD_DIR)
+	$(CC) $(MODULE_CFLAGS) -c $< -o $@
+$(BUILD_DIR)/filename.o: ../modules/filename/filename.c | $(BUILD_DIR)
 	$(CC) $(MODULE_CFLAGS) -c $< -o $@
 
 # Tests.

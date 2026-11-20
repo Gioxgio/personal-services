@@ -8,9 +8,11 @@
  * under `download_dir`. `format` is "audio" or "video".
  *
  * On success writes the absolute path of the downloaded file into `out_path`
- * (capacity `out_cap`) and returns 0. On failure returns -1. The temporary
- * directory is left in place; the caller must call download_cleanup() on the
- * returned path once the file has been served.
+ * (capacity `out_cap`) and returns 0. The file is named after the video title,
+ * sanitized with the same rule as stream-sniper's live filenames, and is never
+ * a .part file. On failure returns -1. The temporary directory is left in
+ * place; the caller must call download_cleanup() on the returned path once the
+ * file has been served.
  */
 int download_media(const char* yt_dlp_path, const char* download_dir, const char* url,
                    const char* format, char* out_path, size_t out_cap);

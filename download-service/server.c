@@ -408,13 +408,18 @@ static int serve_file_job(const server_config_t* config, int client_fd, const ch
         return -1;
     }
 
-    /* Build headers + stream body directly to the socket. */
-    char head[512];
+    /* Build headers + stream body directly to the socket. The file on disk is
+     * already named <sanitized title>.<ext>, so expose that name to clients. */
+    const char* base = strrchr(file_path, '/');
+    base = base ? base + 1 : file_path;
+    char head[768];
     int head_len = snprintf(head, sizeof(head),
                             "HTTP/1.1 200 OK\r\n"
                             "Content-Type: application/octet-stream\r\n"
+                            "Content-Disposition: attachment; filename=\"%s\"\r\n"
                             "Connection: close\r\n"
-                            "\r\n");
+                            "\r\n",
+                            base);
     if (head_len < 0 || (size_t)head_len >= sizeof(head)) {
         close(fd);
         set_response(response, 500);
