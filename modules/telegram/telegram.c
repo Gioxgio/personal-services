@@ -30,10 +30,25 @@ static size_t write_callback(void* contents, size_t size, size_t nmemb, void* us
     return total;
 }
 
+/* ---------- helpers ---------- */
+
+/* Build a Telegram API URL for `method`. TELEGRAM_API_URL overrides the host
+ * so tests can point at a local mock server. */
+static int telegram_api_url(const char* token, const char* method, char* out, size_t cap) {
+    const char* api_base = getenv("TELEGRAM_API_URL");
+    int n;
+    if (api_base && api_base[0]) {
+        n = snprintf(out, cap, "%s/bot%s/%s", api_base, token, method);
+    } else {
+        n = snprintf(out, cap, "https://api.telegram.org/bot%s/%s", token, method);
+    }
+    return (n >= 0 && (size_t)n < cap) ? 0 : -1;
+}
+
 // Public API
 
-/* Internal transport: the ONLY method that writes to Telegram's API.
- * Every public Telegram write must go through telegram_send_message(). */
+/* Internal text transport used by telegram_send_message(). File uploads use
+ * telegram_send_document(); both go directly to the Telegram API. */
 static int telegram_send_raw(const char* token, const char* chat_id, const char* text,
                              char* response_out, size_t response_capacity);
 
@@ -57,14 +72,9 @@ static int telegram_send_raw(const char* token, const char* chat_id, const char*
     CURLcode res;
     long http_code = 0;
 
-    /* Build URL: https://api.telegram.org/bot<token>/sendMessage */
-    /* Allow override via TELEGRAM_API_URL for testing with a mock server */
     char url[512];
-    const char* api_base = getenv("TELEGRAM_API_URL");
-    if (api_base && api_base[0]) {
-        snprintf(url, sizeof(url), "%s/bot%s/sendMessage", api_base, token);
-    } else {
-        snprintf(url, sizeof(url), "https://api.telegram.org/bot%s/sendMessage", token);
+    if (telegram_api_url(token, "sendMessage", url, sizeof(url)) < 0) {
+        return -1;
     }
 
     /* Build JSON body with escaped message */
@@ -115,6 +125,80 @@ static int telegram_send_raw(const char* token, const char* chat_id, const char*
     curl_slist_free_all(headers);
 
     return (int)http_code;
+}
+
+/*
+ * Upload a local file as a Telegram document. The multipart body carries the
+ * chat id, the file itself and an optional caption.
+ */
+int telegram_send_document(const telegram_config_t* config, const char* file_path,
+                           const char* caption, char* response_out, size_t response_capacity) {
+    if (!config || !config->token || !config->chat_id || !file_path || file_path[0] == '\0') {
+        return -1;
+    }
+
+    char url[512];
+    if (telegram_api_url(config->token, "sendDocument", url, sizeof(url)) < 0) {
+        return -1;
+    }
+
+    CURL* curl = curl_easy_init();
+    if (!curl) {
+        return -1;
+    }
+
+    struct curl_slist* headers = curl_slist_append(NULL, "Content-Type: multipart/form-data");
+    curl_mime* mime = curl_mime_init(curl);
+    if (!headers || !mime) {
+        curl_mime_free(mime);
+        curl_slist_free_all(headers);
+        curl_easy_cleanup(curl);
+        return -1;
+    }
+
+    curl_mimepart* part = curl_mime_addpart(mime);
+    curl_mime_name(part, "chat_id");
+    curl_mime_data(part, config->chat_id, CURL_ZERO_TERMINATED);
+
+    part = curl_mime_addpart(mime);
+    curl_mime_name(part, "document");
+    if (curl_mime_filedata(part, file_path) != CURLE_OK) {
+        curl_mime_free(mime);
+        curl_slist_free_all(headers);
+        curl_easy_cleanup(curl);
+        return -1;
+    }
+
+    if (caption && caption[0] != '\0') {
+        part = curl_mime_addpart(mime);
+        curl_mime_name(part, "caption");
+        curl_mime_data(part, caption, CURL_ZERO_TERMINATED);
+    }
+
+    http_response_buf_t resp_buf = {response_out, response_capacity, 0};
+    if (response_out && response_capacity > 0) {
+        response_out[0] = '\0';
+    }
+
+    curl_easy_setopt(curl, CURLOPT_URL, url);
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+    curl_easy_setopt(curl, CURLOPT_MIMEPOST, mime);
+    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 5L);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 120L);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &resp_buf);
+
+    CURLcode res = curl_easy_perform(curl);
+    long http_code = 0;
+    if (res == CURLE_OK) {
+        curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+    }
+
+    curl_mime_free(mime);
+    curl_slist_free_all(headers);
+    curl_easy_cleanup(curl);
+
+    return res == CURLE_OK ? (int)http_code : -1;
 }
 
 /* ---------- polling ---------- */

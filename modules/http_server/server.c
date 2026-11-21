@@ -219,9 +219,10 @@ static void send_telegram_reply(const server_config_t* config, const char* text)
 
 /*
  * Handle a single Telegram update (webhook or polling): if the text is a
- * `/download <url>` command, forward it to the download-service, track the job
- * id, and reply via the configured chat. Non-/download messages are
- * acknowledged silently.
+ * `/download <url>` command, forward it to the download-service and track the
+ * job id. Only submission errors are replied to here; the download-service
+ * sends the "Download started." notification itself. Non-/download messages
+ * are acknowledged silently.
  */
 void handle_update(const server_config_t* config, const char* text) {
     /* Only the /download command is handled. */
@@ -241,16 +242,13 @@ void handle_update(const server_config_t* config, const char* text) {
     fprintf(stderr, "notification-service: message forwarded url=%s\n", arg);
     int rc = download_submit(arg, job_id, sizeof(job_id));
 
-    const char* reply;
     if (rc == 0) {
         jobset_add(job_id);
-        reply = "Download started.";
-    } else if (rc == 1) {
-        reply = "Unsupported domain.";
-    } else {
-        reply = "Failed to start the download.";
+        /* Download-service posts "Download started." via /notifications. */
+        return;
     }
 
+    const char* reply = (rc == 1) ? "Unsupported domain." : "Failed to start the download.";
     send_telegram_reply(config, reply);
 }
 
@@ -284,19 +282,47 @@ static void handle_webhook(const server_config_t* config, const char* body, size
 }
 
 /*
+ * Build the URL that serves the completed file for `job_id`. DOWNLOAD_SERVICE_URL
+ * points at the /download endpoint, so strip that suffix to reach /file/<job_id>.
+ */
+static int download_file_url(const char* job_id, char* out, size_t cap) {
+    const char* service_url = getenv("DOWNLOAD_SERVICE_URL");
+    if (!service_url || service_url[0] == '\0') {
+        service_url = DEFAULT_DOWNLOAD_SERVICE_URL;
+    }
+
+    const char* suffix = "/download";
+    size_t url_len = strlen(service_url);
+    size_t suffix_len = strlen(suffix);
+    if (url_len <= suffix_len || strcmp(service_url + url_len - suffix_len, suffix) != 0) {
+        fprintf(stderr, "notification-service: unexpected DOWNLOAD_SERVICE_URL %s\n", service_url);
+        return -1;
+    }
+
+    int n = snprintf(out, cap, "%.*s/file/%s", (int)(url_len - suffix_len), service_url, job_id);
+    return (n >= 0 && (size_t)n < cap) ? 0 : -1;
+}
+
+/* The callback carries the download-service's on-disk path; only the basename
+ * is relevant to the recipient (and to the temporary fetch filename). */
+static const char* path_basename(const char* path) {
+    const char* slash = strrchr(path, '/');
+    return slash ? slash + 1 : path;
+}
+
+/*
  * Handle a download-service callback: POST /callback/download with body
- *   { "job_id": "...", ... }
+ *   { "job_id": "...", "status": "completed|failed",
+ *     "file_path": "...", "error": "..." }
  *
- * Download-service owns the download notifications. The notification-service
- * only validates the job is known and acknowledges with 200 so the
- * download-service stops retrying. Any Telegram message about this download
- * is sent by download-service via POST /notifications (source: "download-service").
+ * The download-service owns the text notifications; this handler delivers the
+ * actual file. For a completed job it fetches the file from the download-service
+ * and uploads it to the configured Telegram chat. If that is not possible it
+ * falls back to a text message. Delivery failures are logged only: the callback
+ * is always acknowledged with 200 so the download-service stops retrying.
  */
 static void handle_callback(const server_config_t* config, const char* body, size_t body_length,
                             http_response_t* response) {
-    (void)config;
-    (void)body_length;
-
     char body_copy[MAX_HTTP_BODY + 1];
     size_t copy_len = body_length > (size_t)MAX_HTTP_BODY ? (size_t)MAX_HTTP_BODY : body_length;
     if (copy_len > 0 && body) {
@@ -319,7 +345,74 @@ static void handle_callback(const server_config_t* config, const char* body, siz
         return;
     }
 
-    fprintf(stderr, "notification-service: callback received job_id=%s\n", job_id);
+    char status[16] = "";
+    char file_path[PATH_MAX] = "";
+    char error[256] = "";
+    (void)json_find_top_level_string(body_copy, "status", status, sizeof(status));
+    (void)json_find_top_level_string(body_copy, "file_path", file_path, sizeof(file_path));
+    (void)json_find_top_level_string(body_copy, "error", error, sizeof(error));
+
+    fprintf(stderr,
+            "notification-service: callback received job_id=%s status=%s file_path=%s error=%s\n",
+            job_id, status, file_path, error);
+
+    char telegram_response[MAX_TELEGRAM_RESPONSE];
+    bool delivered = false;
+
+    if (strcmp(status, "completed") == 0 && file_path[0] != '\0') {
+        char file_url[1024];
+        if (download_file_url(job_id, file_url, sizeof(file_url)) == 0) {
+            char tmp_path[PATH_MAX] = "";
+            if (download_fetch_to_file(file_url, path_basename(file_path), tmp_path,
+                                       sizeof(tmp_path)) == 0) {
+                int tg_status =
+                    telegram_send_document(&config->telegram_config, tmp_path, "Download complete.",
+                                           telegram_response, sizeof(telegram_response));
+                download_fetch_cleanup(tmp_path);
+                if (tg_status >= 200 && tg_status < 300) {
+                    delivered = true;
+                    fprintf(stderr, "notification-service: file delivered for job %s\n", job_id);
+                } else {
+                    fprintf(stderr,
+                            "notification-service: file upload for job %s failed (HTTP %d): %s\n",
+                            job_id, tg_status, telegram_response);
+                }
+            } else {
+                fprintf(stderr, "notification-service: failed to fetch file for job %s\n", job_id);
+            }
+        }
+    }
+
+    if (!delivered) {
+        char message[MAX_TELEGRAM_MSG_LEN + 1];
+        int n;
+        if (strcmp(status, "completed") == 0 && file_path[0] != '\0') {
+            n = snprintf(message, sizeof(message),
+                         "Download finished but the file could not be sent. File: %s", file_path);
+        } else if (strcmp(status, "completed") == 0) {
+            n = snprintf(message, sizeof(message), "Download complete.");
+        } else if (error[0] != '\0') {
+            n = snprintf(message, sizeof(message), "Download failed: %s", error);
+        } else {
+            n = snprintf(message, sizeof(message), "Download failed.");
+        }
+        if (n < 0 || (size_t)n >= sizeof(message)) {
+            snprintf(message, sizeof(message), "Download finished.");
+        }
+
+        notification_payload_t payload;
+        snprintf(payload.source, sizeof(payload.source), "notification-service");
+        snprintf(payload.message, sizeof(payload.message), "%s", message);
+        int tg_status = telegram_send_message(&config->telegram_config, &payload, telegram_response,
+                                              sizeof(telegram_response));
+        if (tg_status < 0) {
+            fprintf(stderr, "notification-service: callback notification failed for job %s\n",
+                    job_id);
+        } else if (tg_status != 200 && telegram_response[0] != '\0') {
+            fprintf(stderr, "notification-service: callback notification replied %d: %s\n",
+                    tg_status, telegram_response);
+        }
+    }
 
     /* Flow ends here: the job is no longer tracked. */
     jobset_remove(job_id);

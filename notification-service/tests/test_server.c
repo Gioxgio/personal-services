@@ -390,6 +390,36 @@ static pid_t spawn_mock_telegram(int status_code, const char* response_body) {
     return pid;
 }
 
+/* Bind the Telegram mock port and report via exit status if anything connects.
+ * Used to prove a code path sends no Telegram message at all. */
+static pid_t spawn_telegram_guard(void) {
+    fflush(stdout);
+    pid_t pid = fork();
+    if (pid == 0) {
+        int server_fd = socket(AF_INET, SOCK_STREAM, 0);
+        if (server_fd < 0)
+            _exit(1);
+
+        int opt = 1;
+        setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+
+        struct sockaddr_in addr;
+        memset(&addr, 0, sizeof(addr));
+        addr.sin_family = AF_INET;
+        addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+        addr.sin_port = htons((unsigned short)MOCK_TELEGRAM_PORT);
+
+        if (bind(server_fd, (struct sockaddr*)&addr, sizeof(addr)) < 0 ||
+            listen(server_fd, 1) < 0)
+            _exit(1);
+
+        int client_fd = accept(server_fd, NULL, NULL);
+        _exit(client_fd >= 0 ? 42 : 0);
+    }
+    sleep_ms(100);
+    return pid;
+}
+
 /* One-shot mock download-service: POST /download -> status/body. */
 #define MOCK_DOWNLOAD_PORT 18940
 
@@ -512,8 +542,8 @@ static void test_webhook(void) {
     server_config_t config = make_config();
     http_response_t response;
 
-    /* The dispatcher calls download_submit (DOWNLOAD_SERVICE_URL) and
-     * telegram_send_message (TELEGRAM_API_URL), so both need a mock. */
+    /* The dispatcher calls download_submit (DOWNLOAD_SERVICE_URL); submission
+     * errors still call telegram_send_message (TELEGRAM_API_URL). */
     setenv("TELEGRAM_API_URL", "http://127.0.0.1:18932", 1);
     setenv("DOWNLOAD_SERVICE_URL", "http://127.0.0.1:18940/download", 1);
 
@@ -534,10 +564,12 @@ static void test_webhook(void) {
                  "{\"update_id\": 1}", &response);
     check(response.status_code == 400, "webhook: update without message text is 400");
 
-    /* --- happy path: download accepted, job tracked --- */
+    /* --- happy path: download accepted, job tracked, no Telegram reply ---
+     * The start notification belongs to download-service, so notification-
+     * service must not send one when the submit succeeds. */
 
     pid_t mock_dl = spawn_mock_download(200, "{\"job_id\": \"wh-job-1\"}");
-    pid_t mock_tg = spawn_mock_telegram(200, "{\"ok\": true}");
+    pid_t tg_guard = spawn_telegram_guard();
 
     dispatch_webhook(&config,
                      "{\"update_id\": 1,\"message\":{\"chat\":{\"id\":42},"
@@ -546,13 +578,21 @@ static void test_webhook(void) {
     check(response.status_code == 200, "webhook: accepted download is 200");
     check(jobset_contains("wh-job-1"), "webhook: accepted job is tracked");
 
+    sleep_ms(50);
+    int guard_status = 0;
+    pid_t guard = waitpid(tg_guard, &guard_status, WNOHANG);
+    check(guard == 0, "webhook: accepted download sends no Telegram start message");
+    if (guard == 0) {
+        kill(tg_guard, SIGKILL);
+        waitpid(tg_guard, NULL, 0);
+    }
+
     waitpid(mock_dl, NULL, 0);
-    waitpid(mock_tg, NULL, 0);
 
     /* --- download service rejects the domain --- */
 
     mock_dl = spawn_mock_download(400, "{\"error\": \"unsupported_domain\"}");
-    mock_tg = spawn_mock_telegram(200, "{\"ok\": true}");
+    pid_t mock_tg = spawn_mock_telegram(200, "{\"ok\": true}");
 
     dispatch_webhook(&config,
                      "{\"update_id\": 2,\"message\":{\"chat\":{\"id\":42},"
@@ -618,8 +658,7 @@ static void test_callback(void) {
     jobset_add("cb-job-ok");
     jobset_add("cb-job-fail");
 
-    /* completed: job removed (notification-service no longer sends
-     * Telegram; download-service owns download notifications) */
+    /* completed: job removed */
     {
         dispatch_callback(&config,
                           "{\"job_id\": \"cb-job-ok\", "
@@ -628,6 +667,44 @@ static void test_callback(void) {
                           &response);
         check(response.status_code == 200, "callback: completed is 200");
         check(!jobset_contains("cb-job-ok"), "callback: completed job removed from set");
+    }
+
+    /* completed with a servable file: notification-service fetches it from
+     * the download-service and uploads it to Telegram as a document. */
+    {
+        const char* body_file = "/tmp/opencode/callback_document_body.txt";
+        jobset_add("cb-job-file");
+        setenv("DOWNLOAD_SERVICE_URL", "http://127.0.0.1:18940/download", 1);
+        setenv("TELEGRAM_TEST_BODY_FILE", body_file, 1);
+        pid_t mock_dl = spawn_mock_download(200, "FILE-BYTES");
+        pid_t mock_tg = spawn_mock_telegram(200, "{\"ok\": true}");
+
+        dispatch_callback(&config,
+                          "{\"job_id\": \"cb-job-file\", "
+                          "\"status\": \"completed\", \"file_path\": "
+                          "\"/var/lib/download-service/download.1/abc123.mp4\"}",
+                          &response);
+        check(response.status_code == 200, "callback: file delivery is 200");
+        check(!jobset_contains("cb-job-file"), "callback: file job removed from set");
+
+        waitpid(mock_dl, NULL, 0);
+        waitpid(mock_tg, NULL, 0);
+
+        FILE* f = fopen(body_file, "rb");
+        check(f != NULL, "callback: Telegram multipart body captured");
+        if (f) {
+            char body[8192];
+            size_t n = fread(body, 1, sizeof(body) - 1, f);
+            body[n] = '\0';
+            fclose(f);
+            check(strstr(body, "name=\"chat_id\"") != NULL, "callback: chat id sent to Telegram");
+            check(strstr(body, "name=\"document\"") != NULL, "callback: document part uploaded");
+            check(strstr(body, "abc123.mp4") != NULL, "callback: uploaded file keeps its name");
+            check(strstr(body, "FILE-BYTES") != NULL,
+                  "callback: uploaded file has fetched content");
+            check(strstr(body, "name=\"caption\"") != NULL, "callback: caption uploaded");
+        }
+        unsetenv("TELEGRAM_TEST_BODY_FILE");
     }
 
     /* failed: error acknowledged, job removed */

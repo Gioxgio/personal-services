@@ -14,6 +14,14 @@ int telegram_send_message(const telegram_config_t* config, const notification_pa
                           char* response_out, size_t response_capacity);
 
 /*
+ * Upload a local file to the configured chat via Telegram's sendDocument API.
+ * `caption` may be NULL or empty. Returns the Telegram HTTP status code, or
+ * -1 on transport/setup error.
+ */
+int telegram_send_document(const telegram_config_t* config, const char* file_path,
+                           const char* caption, char* response_out, size_t response_capacity);
+
+/*
  * Poll Telegram's getUpdates endpoint for new updates.
  *
  * Writes the raw JSON response body into `out` (capacity `out_cap`) and

@@ -108,5 +108,10 @@ the stack up.
 - Every service that sends notifications tags itself:
   - `stream-sniper` POSTs `{ "source": "stream-sniper", "message": ... }`
     (message text no longer repeats the service name).
-  - `download-service` POSTs download-result callbacks with
-    `"source": "download-service"`.
+  - `download-service` POSTs download status text notifications (start and
+    result) with `"source": "download-service"`; `notification-service` does
+    not send a separate "Download started." reply. The actual file is
+    delivered separately: the callback to `/callback/download` carries
+    `file_path`, and
+    `notification-service` fetches it from `GET /file/<job_id>` and uploads
+    it to Telegram as a document.

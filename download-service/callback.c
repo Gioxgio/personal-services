@@ -20,9 +20,11 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-/* Timeouts for the callback request, in seconds. */
+/* Timeouts for the callback request, in seconds. The callback now also waits
+ * for the notification-service to fetch the file and upload it to Telegram
+ * (up to 60s + 120s), so allow more than the old text-only acknowledgment. */
 #define CALLBACK_CONNECT_TIMEOUT_SEC 5
-#define CALLBACK_TIMEOUT_SEC 10
+#define CALLBACK_TIMEOUT_SEC 190
 /* Maximum size of the JSON request body we are willing to send. */
 #define CALLBACK_BODY_MAX 16384
 /* Default HTTP port when the URL omits one. */
