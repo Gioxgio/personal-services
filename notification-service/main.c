@@ -88,9 +88,10 @@ static void usage(const char* reason) {
             "Usage: %s\n"
             "\n"
             "Required environment variables:\n"
-            "  PORT             TCP port to listen on (1-65535)\n"
-            "  TELEGRAM_TOKEN   Bot token issued by @BotFather\n"
-            "  TELEGRAM_CHAT_ID Target chat id, or @channelusername\n"
+            "  PORT                 TCP port to listen on (1-65535)\n"
+            "  TELEGRAM_TOKEN       Bot token issued by @BotFather\n"
+            "  TELEGRAM_CHAT_ID     Target chat id, or @channelusername\n"
+            "  DOWNLOAD_SERVICE_URL Download-service POST /download endpoint\n"
             "\n"
             "Route:\n"
             "  POST %s   {\"message\": \"...\"}\n",
@@ -212,8 +213,9 @@ int main(void) {
     const char* port_str = require_env("PORT");
     const char* token = require_env("TELEGRAM_TOKEN");
     const char* chat_id = require_env("TELEGRAM_CHAT_ID");
+    const char* service_url = require_env("DOWNLOAD_SERVICE_URL");
 
-    if (!port_str || !token || !chat_id) {
+    if (!port_str || !token || !chat_id || !service_url) {
         char missing[128] = "";
         if (!port_str) {
             note_missing(missing, sizeof(missing), "PORT");
@@ -223,6 +225,9 @@ int main(void) {
         }
         if (!chat_id) {
             note_missing(missing, sizeof(missing), "TELEGRAM_CHAT_ID");
+        }
+        if (!service_url) {
+            note_missing(missing, sizeof(missing), "DOWNLOAD_SERVICE_URL");
         }
 
         char reason[192];

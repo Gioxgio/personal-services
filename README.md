@@ -89,10 +89,13 @@ Service-to-service URLs are pre-wired per the whiteboard diagram:
   `http://notification-service:8080/notifications`
 
 Each service maps its own port (download-service 8081, notification-service
-8080, stream-sniper has no published port by default). Copy a sibling
-`.env.template` to `.env` and fill in secrets
-(`TELEGRAM_TOKEN`, `TELEGRAM_CHAT_ID`, Twitch credentials) before bringing
-the stack up.
+8080, stream-sniper has no published port by default). Every variable is read
+from the service's own `.env` file: there are no defaults or fallbacks in the
+code, the Dockerfile or compose. The `.env.template` files hold the current
+non-secret values; copy each one to `.env` and fill in the secrets
+(`TELEGRAM_TOKEN`, `TWITCH_CLIENT_SECRET`, `TWITCH_TOKEN`) before bringing the
+stack up. An unset variable is an error; an empty value is explicit and turns
+the feature it controls off.
 
 ## Notifications: the `source` field (whiteboard todo)
 

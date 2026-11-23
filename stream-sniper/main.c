@@ -48,6 +48,20 @@ static void usage(const char* prog) {
             prog);
 }
 
+/* Every config variable this service reads must be present. There are no
+ * defaults: an empty value is explicit and turns the feature off. */
+static int check_env(void) {
+    static const char* const names[] = {"TWITCH_CLIENT_ID", "TWITCH_CLIENT_SECRET", "TWITCH_TOKEN",
+                                        "SS_WRAPPER_DIR", "SS_NOTIFY_URL"};
+    for (size_t i = 0; i < sizeof names / sizeof names[0]; i++) {
+        if (!getenv(names[i])) {
+            fprintf(stderr, "stream-sniper: missing required environment variable: %s\n", names[i]);
+            return -1;
+        }
+    }
+    return 0;
+}
+
 /* One sweep: probe every idle channel, start a recorder for the live ones. */
 static void sweep(void) {
     for (size_t i = 0; i < g_nchannels; i++) {
@@ -159,6 +173,8 @@ int main(int argc, char** argv) {
         return EXIT_FAILURE;
     if (rc > 0)
         return 0;
+    if (check_env() != 0)
+        return EXIT_FAILURE;
 
     signal(SIGPIPE, SIG_IGN);
     struct sigaction sa = {0};

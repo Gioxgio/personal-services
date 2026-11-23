@@ -7,8 +7,7 @@
  * Submit a download job to the download-service (POST /download).
  *
  * Builds {"url": "..."} and POSTs it to the download-service endpoint read
- * from the DOWNLOAD_SERVICE_URL environment variable (default:
- * http://127.0.0.1:8080/download).
+ * from the required DOWNLOAD_SERVICE_URL environment variable.
  *
  * Returns:
  *   0  accepted: job_id_out is filled with the job id (NUL-terminated).

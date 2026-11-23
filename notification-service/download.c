@@ -17,7 +17,6 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#define DEFAULT_DOWNLOAD_SERVICE_URL "http://127.0.0.1:8080/download"
 #define DOWNLOAD_SUBMIT_BODY_MAX 4096
 #define DOWNLOAD_SUBMIT_RESPONSE_MAX 1024
 
@@ -49,8 +48,10 @@ int download_submit(const char* url, char* job_id_out, size_t job_id_cap) {
         return -1;
 
     const char* service_url = getenv("DOWNLOAD_SERVICE_URL");
-    if (!service_url || service_url[0] == '\0')
-        service_url = DEFAULT_DOWNLOAD_SERVICE_URL;
+    if (!service_url || service_url[0] == '\0') {
+        fprintf(stderr, "notification-service: DOWNLOAD_SERVICE_URL is not set\n");
+        return -1;
+    }
 
     char e_url[DOWNLOAD_SUBMIT_BODY_MAX];
     if (json_escape_string(url, e_url, sizeof(e_url)) < 0)

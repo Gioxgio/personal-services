@@ -6,7 +6,7 @@
  * probe_is_live() reaches the world through http_get() /
  * http_get_ex() and the twitch_auth_* token helpers, so this
  * file stubs exactly that seam: every URL probe.c can build
- * maps to a fixture under tests/fixtures/, and a URL with no
+ * maps to a fixture under fixtures/, and a URL with no
  * fixture stands in for a dead host. The production probe.c
  * is compiled in via #include below - only the I/O seam is
  * fake, so the dispatch, the JSON scan and the predicates are
@@ -38,11 +38,11 @@ static const char* fixture_for(const char* url) {
     if (q) {
         const char* slug = q + strlen("user_login=");
         if (!strncmp(slug, "live", 4))
-            return "tests/fixtures/twitch_streams_live.html";
+            return "fixtures/twitch_streams_live.html";
         if (!strncmp(slug, "off", 3))
-            return "tests/fixtures/twitch_streams_offline.html";
+            return "fixtures/twitch_streams_offline.html";
         if (!strncmp(slug, "stale", 5))
-            return "tests/fixtures/twitch_streams_live.html";
+            return "fixtures/twitch_streams_live.html";
         return NULL; /* unknown slug: dead host */
     }
 
@@ -50,17 +50,17 @@ static const char* fixture_for(const char* url) {
     const char* w = strstr(url, "watch?v=");
     if (w) {
         const char* vid = w + strlen("watch?v=");
-        return !strncmp(vid, "LIVE", 4) ? "tests/fixtures/youtube_watch_live.html"
-                                        : "tests/fixtures/youtube_watch_vod.html";
+        return !strncmp(vid, "LIVE", 4) ? "fixtures/youtube_watch_live.html"
+                                        : "fixtures/youtube_watch_vod.html";
     }
 
     /* YouTube /streams page: identify the channel by its handle. */
     if (strstr(url, "@livechan"))
-        return "tests/fixtures/youtube_streams_live.html";
+        return "fixtures/youtube_streams_live.html";
     if (strstr(url, "@offchan"))
-        return "tests/fixtures/youtube_streams_offline.html";
+        return "fixtures/youtube_streams_offline.html";
     if (strstr(url, "@emptychan"))
-        return "tests/fixtures/youtube_streams_empty.html";
+        return "fixtures/youtube_streams_empty.html";
     return NULL;
 }
 

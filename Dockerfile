@@ -19,8 +19,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
  && mkdir -p /var/lib/download-service && chown -R download:download /var/lib/download-service
 WORKDIR /var/lib/download-service
 COPY --from=download-builder /src/download-service/build/download-service /usr/local/bin/download-service
-ENV PORT=8080 DOWNLOAD_STORAGE_PATH=/var/lib/download-service YTDLP_PATH=/usr/local/bin/yt-dlp CALLBACK_URL=http://notification-service:8080/callback/download
-EXPOSE 8080
+EXPOSE 8081
 USER download
 STOPSIGNAL SIGTERM
 ENTRYPOINT ["download-service"]
@@ -38,7 +37,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends libcurl4 ca-cer
  && useradd --system --home-dir /nonexistent --shell /usr/sbin/nologin notification
 WORKDIR /src
 COPY --from=notification-builder /src/notification-service/build/notification-service /usr/local/bin/notification-service
-ENV PORT=8080
 EXPOSE 8080
 USER notification
 STOPSIGNAL SIGTERM
@@ -57,7 +55,6 @@ RUN apk add --no-cache libcurl ffmpeg ca-certificates python3 curl \
  && curl -fsSL -o /usr/local/bin/yt-dlp https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp && chmod 0755 /usr/local/bin/yt-dlp
 COPY --from=stream-sniper-builder /usr/local/bin/stream-sniper /usr/local/bin/stream-sniper
 COPY --from=stream-sniper-builder /usr/local/libexec/stream-sniper/ /usr/local/libexec/stream-sniper/
-ENV SS_WRAPPER_DIR=/usr/local/libexec/stream-sniper SS_NOTIFY_URL=http://notification-service:8080/notifications
 WORKDIR /data
 COPY stream-sniper/channels.txt.example /data/channels.txt
 ENTRYPOINT ["stream-sniper"]

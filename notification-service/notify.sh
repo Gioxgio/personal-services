@@ -4,7 +4,7 @@
 #
 # The message comes from the arguments, or from stdin when no argument is
 # given. The service must already be listening: start it with ./run.sh.
-# The port is taken from $PORT, else from .env, else 8080.
+# The port is taken from $PORT, which must be set (no defaults or fallbacks).
 #
 # Usage:
 #   ./notify.sh "disk almost full"
@@ -15,9 +15,6 @@
 # error, 2 when the service answered anything else.
 
 set -euo pipefail
-
-ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-ENV_FILE="$ROOT/.env"
 
 # json.h caps the message at MAX_TELEGRAM_MSG_LEN characters.
 MAX_MSG_LEN=4096
@@ -43,7 +40,7 @@ json_escape() {
     printf '%s' "$s"
 }
 
-port="${PORT:-}"
+port="${PORT-}"
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -73,19 +70,9 @@ if [ "${#message}" -gt "$MAX_MSG_LEN" ]; then
     die "message is ${#message} characters, the service allows $MAX_MSG_LEN"
 fi
 
-if [ -z "$port" ] && [ -f "$ENV_FILE" ]; then
-    # Read PORT out of the file instead of sourcing it, which would execute it.
-    # An inline comment and surrounding quotes are stripped because neither is
-    # part of the value.
-    port=$(sed -n 's/^[[:space:]]*PORT[[:space:]]*=[[:space:]]*\(.*\)$/\1/p' "$ENV_FILE" \
-           | tail -n 1 \
-           | sed -e 's/[[:space:]]*#.*$//' -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
-    port=${port#\"}; port=${port%\"}
-    port=${port#\'}; port=${port%\'}
-    port=${port#\"}; port=${port%\"}
-    port=${port#\'}; port=${port%\'}
+if [ -z "$port" ]; then
+    die "PORT is not set"
 fi
-port=${port:-8080}
 
 case "$port" in
     *[!0-9]*|'') die "PORT is not a number: $port" ;;

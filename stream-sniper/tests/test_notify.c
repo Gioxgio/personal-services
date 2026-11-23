@@ -163,7 +163,8 @@ static pthread_t g_server_thread;
  * body could itself contain anything, including this string.
  */
 static long parse_content_length(const char* hdr, const char* headers_end) {
-    for (const char* p = hdr; p < headers_end && *p; p++) {
+    const char* p = hdr;
+    while (p < headers_end && *p) {
         if (strncasecmp(p, "Content-Length:", 15) == 0) {
             p += 15;
             while (*p == ' ' || *p == '\t')
@@ -503,12 +504,12 @@ int main(void) {
     CHECK(strstr(r1.hdrs, "Content-Type: application/json") != NULL);
 
     /* The start message, byte for byte: source + message. */
-    CHECK_STR_EQ(r0.body, "{\"source\": \"stream-sniper\", \"message\": \"started "
+    CHECK_STR_EQ(r0.body, "{\"source\": \"stream-sniper\", \"message\": \"Started "
                           "recording notifytest\"}");
 
     char prefix[REQ_BODY_MAX];
     snprintf(prefix, sizeof prefix,
-             "{\"source\": \"stream-sniper\", \"message\": \"stopped "
+             "{\"source\": \"stream-sniper\", \"message\": \"Stopped "
              "recording %s after ",
              g_ch.slug);
     check_body_shape(r1.body, prefix, " (completed)\"}");
@@ -531,7 +532,7 @@ int main(void) {
     CHECK(request_at(3, &r3));
     CHECK(strncmp(r3.line, "POST /notifications ", 20) == 0);
     snprintf(prefix, sizeof prefix,
-             "{\"source\": \"stream-sniper\", \"message\": \"stopped "
+             "{\"source\": \"stream-sniper\", \"message\": \"Stopped "
              "recording %s after ",
              g_ch.slug);
     check_body_shape(r3.body, prefix, " (failed)\"}");

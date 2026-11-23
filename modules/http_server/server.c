@@ -35,9 +35,6 @@ volatile sig_atomic_t g_keep_running = 1;
 #define MAX_PATH_LEN 256
 #define MAX_TELEGRAM_RESPONSE 1024
 
-/* Fallback download-service base URL when DOWNLOAD_SERVICE_URL is unset. */
-#define DEFAULT_DOWNLOAD_SERVICE_URL "http://127.0.0.1:8080/download"
-
 /* ---------- status helpers ---------- */
 
 static const char* status_reason(int code) {
@@ -288,7 +285,8 @@ static void handle_webhook(const server_config_t* config, const char* body, size
 static int download_file_url(const char* job_id, char* out, size_t cap) {
     const char* service_url = getenv("DOWNLOAD_SERVICE_URL");
     if (!service_url || service_url[0] == '\0') {
-        service_url = DEFAULT_DOWNLOAD_SERVICE_URL;
+        fprintf(stderr, "notification-service: DOWNLOAD_SERVICE_URL is not set\n");
+        return -1;
     }
 
     const char* suffix = "/download";

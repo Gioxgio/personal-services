@@ -15,11 +15,6 @@
 
 #define PROG_NAME "download-service"
 
-/* Default maximum number of parallel downloads (download.concurrency). */
-#define DEFAULT_CONCURRENCY 4U
-/* Default root for on-disk downloads (download.storage_path). */
-#define DEFAULT_STORAGE_PATH "/data/downloads"
-
 /* Clears g_keep_running (server.c watches it) to unwind the accept loop. */
 static void shutdown_handler(int sig) {
     (void)sig;
@@ -105,18 +100,14 @@ static void usage(const char* reason) {
     fprintf(stderr,
             "Usage: %s\n"
             "\n"
-            "Required environment variables:\n"
-            "  PORT             TCP port to listen on (1-65535)\n"
-            "\n"
-            "Optional environment variables:\n"
-            "  DOWNLOAD_STORAGE_PATH   Directory downloads are streamed to "
-            "(default: /data/downloads)\n"
-            "  DOWNLOAD_CONCURRENCY    Max parallel downloads (default: 4)\n"
-            "  YTDLP_PATH       Path to the yt-dlp executable "
-            "(default: yt-dlp on PATH)\n"
-            "  CALLBACK_URL    POST download results to this endpoint when a "
-            "download finishes (download.callback.url). Empty disables "
-            "callbacks.\n"
+            "Required environment variables (no defaults):\n"
+            "  PORT                     TCP port to listen on (1-65535)\n"
+            "  DOWNLOAD_STORAGE_PATH    Directory downloads are streamed to disk under\n"
+            "  DOWNLOAD_CONCURRENCY     Max parallel downloads (1-1024)\n"
+            "  YTDLP_PATH               Path to the yt-dlp executable\n"
+            "  DOWNLOAD_ALLOWED_DOMAINS Comma-separated allowed domains (empty = allow none)\n"
+            "  CALLBACK_URL             Download-result callback URL (empty = off)\n"
+            "  NOTIFY_URL               Notification base URL (empty = off)\n"
             "\n"
             "Routes:\n"
             "  POST %s   {\"url\": \"...\"}\n"
@@ -138,39 +129,41 @@ int main(void) {
     }
 
     const char* port_str = require_env("PORT");
-    if (!port_str) {
-        char missing[128] = "";
-        note_missing(missing, sizeof missing, "PORT");
+    const char* storage_path = require_env("DOWNLOAD_STORAGE_PATH");
+    const char* yt_dlp_path = require_env("YTDLP_PATH");
+    const char* concurrency_str = require_env("DOWNLOAD_CONCURRENCY");
 
-        char reason[192];
+    /* Feature toggles: the variable must be set, but an empty value is an
+     * explicit way to turn the feature off (no implicit defaults). */
+    const char* callback_url = getenv("CALLBACK_URL");
+    const char* notify_url = getenv("NOTIFY_URL");
+    const char* allowed_domains_spec = getenv("DOWNLOAD_ALLOWED_DOMAINS");
+
+    char missing[256] = "";
+    if (!port_str)
+        note_missing(missing, sizeof missing, "PORT");
+    if (!storage_path)
+        note_missing(missing, sizeof missing, "DOWNLOAD_STORAGE_PATH");
+    if (!yt_dlp_path)
+        note_missing(missing, sizeof missing, "YTDLP_PATH");
+    if (!concurrency_str)
+        note_missing(missing, sizeof missing, "DOWNLOAD_CONCURRENCY");
+    if (!callback_url)
+        note_missing(missing, sizeof missing, "CALLBACK_URL");
+    if (!notify_url)
+        note_missing(missing, sizeof missing, "NOTIFY_URL");
+    if (!allowed_domains_spec)
+        note_missing(missing, sizeof missing, "DOWNLOAD_ALLOWED_DOMAINS");
+
+    if (missing[0]) {
+        char reason[320];
         snprintf(reason, sizeof reason, "missing required environment variable(s): %s", missing);
         usage(reason);
         return 1;
     }
 
-    const char* storage_path = getenv("DOWNLOAD_STORAGE_PATH");
-    if (!storage_path || storage_path[0] == '\0') {
-        storage_path = DEFAULT_STORAGE_PATH;
-    }
-    const char* yt_dlp_path = getenv("YTDLP_PATH");
-    if (!yt_dlp_path || yt_dlp_path[0] == '\0') {
-        yt_dlp_path = "yt-dlp";
-    }
-    /* Where download results are POSTed when a download finishes
-     * (download.callback.url). Empty disables callbacks. */
-    const char* callback_url = getenv("CALLBACK_URL");
-
-    /* Base URL of the notification endpoint; download-service POSTs
-     * {"source": "download-service", "message": "..."} to
-     * <notify_url>/notifications on download start/finish. Empty disables. */
-    const char* notify_url = getenv("NOTIFY_URL");
-
-    const char* concurrency_str = getenv("DOWNLOAD_CONCURRENCY");
-    if (!concurrency_str || concurrency_str[0] == '\0') {
-        concurrency_str = NULL; /* use the default below */
-    }
-    unsigned long concurrency = DEFAULT_CONCURRENCY;
-    if (concurrency_str && !parse_ulong_range(concurrency_str, 1, 1024, &concurrency)) {
+    unsigned long concurrency = 0;
+    if (!parse_ulong_range(concurrency_str, 1, 1024, &concurrency)) {
         char reason[192];
         snprintf(reason, sizeof reason,
                  "invalid DOWNLOAD_CONCURRENCY \"%s\": expected an integer "
@@ -193,6 +186,13 @@ int main(void) {
 
     config.yt_dlp_path = yt_dlp_path;
 
+    /* download.allowed_domains: comma-separated list; empty allows nothing. */
+    if (allowed_domains_spec[0] != '\0' &&
+        !allowlist_parse(allowed_domains_spec, &config.allowed_domains)) {
+        fprintf(stderr, "download-service: failed to parse DOWNLOAD_ALLOWED_DOMAINS\n");
+        return 1;
+    }
+
     /* The worker pool downloads straight to disk under storage_path; the
      * accept loop never touches downloaded files. */
     worker_pool_config_t pool_config;
@@ -206,17 +206,6 @@ int main(void) {
     if (worker_pool_start(&pool_config) != 0) {
         fprintf(stderr, "download-service: failed to start the download worker pool\n");
         return 1;
-    }
-
-    /* download.allowed_domains: comma-separated list, e.g.
-     * youtube.com,www.youtube.com,m.youtube.com,youtu.be,www.youtu.be */
-    const char* allowed_domains_spec = getenv("DOWNLOAD_ALLOWED_DOMAINS");
-    if (allowed_domains_spec && allowed_domains_spec[0] != '\0') {
-        if (!allowlist_parse(allowed_domains_spec, &config.allowed_domains)) {
-            fprintf(stderr, "download-service: failed to parse "
-                            "DOWNLOAD_ALLOWED_DOMAINS\n");
-            return 1;
-        }
     }
 
     /* Blocks until g_keep_running is cleared by shutdown_handler(). */
